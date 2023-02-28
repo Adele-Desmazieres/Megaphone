@@ -14,5 +14,6 @@ typedef struct msg_client {
 msg_client * msg_client_constr(int codereq, int id, int numfil, int nb, int datalen, char * data, int is_inscript);
 char ** msg_client_to_send(msg_client struc);
 msg_client * tcp_to_msgclient(char ** msg);
+void int_to_bit_string(int n, char * bit_string);
 
 #endif
