@@ -35,159 +35,136 @@ msg_client* msg_client_constr(int codereq, int id, int numfil, int nb, int datal
 }
 
 //Transforme un struct msg_client en un "message" pour TCP
-char** msg_client_to_send(msg_client struc){
+uint16_t * msg_client_to_send(msg_client struc){
 
-    //Taille arbitraire pour le moment?
-    char ** msg = malloc(sizeof(char *) * 1024);
+    //Taille: 6 octets si inscription sinon, dépend de la taille du texte
+    uint16_t * msg = (struc.is_inscript) ? malloc(sizeof(uint16_t) * 6) : malloc(sizeof(uint16_t) * (4 + (strlen(struc.data) - 1) /2) );
 
     //ENTETE
     //CODEREQ | ID
-    int entete = htons((struc.codereq << 11) + struc.id);
-    msg[0] = malloc(2);
-
-    memcpy(msg[0], &entete, 2); 
-
-    print_2bytes(msg[0]);
-
+    msg[0] = htons((struc.codereq << 11) + struc.id) ;
 
     //En cas d'inscription
-    if(!struc.is_inscript){
+    if(struc.is_inscript){
         //PSEUDO
-        printf("INSCRIPTION\n");
+        //printf("Taille du pseudo = %d\n", strlen(struc.data));
         for (int i = 0; i < 10; i += 2) {
-            char car1 = '#';
-            char car2 = '#';
+            //En cas de dépassement, on remplit de #
+            char car1 = ( i < strlen(struc.data)) ? struc.data[i] : '#';
+            char car2 = ( i+1 < strlen(struc.data)) ? struc.data[i+1] : '#';
 
-            if( i < strlen(struc.data) ){
-                car1 = struc.data[i];
-            }
-            if ( (i+1) < strlen(struc.data)){
-                car2 = struc.data[i+1];
-            }
+            //printf("%c %c \n", car1, car2);
 
-            char octet1[9]; char octet2[9];
-            if (octet1 == NULL || octet2 == NULL) { perror("malloc"); return NULL; }
-            int_to_bit_string(car1, octet1, 9);
-            int_to_bit_string(car2, octet2, 9);
-            //itoa(car1, octet1, 2); itoa(car2, octet2, 2); 
-
-            char* couple = strcat(octet1, octet2);
-            memcpy(&msg[(i/2)+1], couple, strlen(couple) );
+            msg[(i/2) + 1] = htons(((int)car1  << 8) + (int)car2);
         }
 
         return msg;
     }
 
-    printf("Numfil\n");
-
     //NUMFIL
-    int numfil = htons(struc.numfil);
-    memcpy(&msg[1], &numfil, sizeof(numfil));
-
-    printf("Nb\n");
+    msg[1] = htons(struc.numfil);
 
     //NB
-    int nb = htons(struc.nb);
-    memcpy(&msg[2], &nb, sizeof(nb));
-
-    printf("Data\n");
+    msg[2] = htons(struc.nb);
 
     //DATALEN | DATA[0]
-    unsigned short datalen = (unsigned short)(struc.datalen);
-    memcpy(&msg[3], &datalen, sizeof(datalen));
-    char* first_data_byte = malloc(sizeof(char) * 9);
-
-    int_to_bit_string(struc.data[0], first_data_byte, 9);
-    //itoa(struc.data[0], first_data_byte, 2);
-
-    memcpy(msg[3]+8, first_data_byte, 8);
-    free(first_data_byte);
-
-    printf("Data restant\n");
+    msg[3] = htons( (struc.datalen << 8) + (int)struc.data[0] );
     
     //DATA restant
-    for (int i = 2; i < struc.datalen; i += 2) {
-            char car1 = '0';
-            char car2 = '0';
-            if( i < struc.datalen ){
-                car1 = struc.data[i];
-            }   
-            if ( (i+1) < struc.datalen){
-                car2 = struc.data[i+1];
-            }
-            char * octet1 = malloc(9 * sizeof(char)); char * octet2 = malloc(9 * sizeof(char));
-            int_to_bit_string(car1, octet1, 9);
-            int_to_bit_string(car2, octet2, 9);
-            //itoa(car1, octet1, 2); itoa(car2, octet2, 2); 
+    int data_pointer = 1;
+    for (int i = 4; data_pointer < strlen(struc.data); data_pointer+= 2, i++) {
+        //En cas de dépassement on remplit par des #, comme pour le pseudo
+            char car1 = ( data_pointer < strlen(struc.data)) ? struc.data[data_pointer] : '#';
+            char car2 = ( data_pointer+1 < strlen(struc.data)) ? struc.data[data_pointer+1] : '#';
 
-            char* couple = strcat(octet1, octet2);
-            memcpy(&msg[(i/2)+4], couple, strlen(couple) );
-            free(octet1); free(octet2);
+            //printf("%c %c \n", car1, car2);
+            msg[i] = htons(((int)car1 << 8) + (int)car2);
+
+            //printf("%d \n", msg[i]);
+            
     }
     return msg; 
 }
 
+//Elimine les # en fin de chaine, alloue la valeur de retour
+char * get_real_name(const char * placeholder){
+    int i = 0;
+    for(; *placeholder != '\0' && *placeholder != '#'; placeholder++, i++){}
+    char * ret = malloc(sizeof(char) * (i+1));
+    strncat(ret, placeholder-i, i);
 
-msg_client * tcp_to_msgclient(char ** msg) {
-    printf("Debut\n");
+    return ret;
+}
+
+msg_client * tcp_to_msgclient(uint16_t * msg) {
 
     //ENTETE
     //CODEREQ | ID
-    char * entete_string = msg[0];
+    uint16_t entete = ntohs(msg[0]);
+    int codereq = (entete >> 11);
+    int id = entete - (codereq << 11);
 
-    //printf("Entete binaire : %s", entete_string);
-    print_2bytes(msg[0]);
+    if( codereq == 1 ) {
+        //printf("ICI\n");
+        char * pseudo = malloc(11 * sizeof(char));
+        int pseudo_pointer = 0;
+        for(int i = 1; pseudo_pointer < 11; pseudo_pointer += 2, i++){
+            uint16_t cars = ntohs(msg[i]);
+            char car1 = (char)(cars >> 8);
+            char car2 = (char)(cars - (car1 << 8));
 
-    printf("Seuil\n");
-    char * codereq_string = malloc(5);
-    if (codereq_string == NULL) { perror("Erreur malloc"); return NULL; }
-    strncpy(codereq_string, entete_string, 5);
+            //printf("%c %c\n", car1, car2);
 
-    int codereq = charbit_to_int(codereq_string, 5);
-
-    printf("Codereq : %d\n", codereq);
-
-    char * id_string = malloc(11);
-    if (id_string == NULL) { perror("Erreur malloc"); return NULL; }
-    strncpy(id_string, entete_string + 5, 11);
-
-    int id = charbit_to_int(id_string, 11);
-
-    printf("Id : %d\n", id);
-
-    return NULL;
-}
-
-void int_to_bit_string(int n, char * bit_string, size_t length) {
-    //printf("Ascii : %c, Nb : %d\n", n, n);
-
-    //On met à 0 toutes les cases de notre bit_string par défaut.
-    memset(bit_string, '0', length);
-    bit_string[length - 1] = '\0';
-    int index = length - 2;
-
-    //On va jusqu'à la fin du nombre pour rajouter bit par bit les puissances de 2.
-    while(n > 0) {
-        if (n % 2 == 0) {
-            bit_string[index] = '0';
+            pseudo[pseudo_pointer] = car1;
+            pseudo[pseudo_pointer+1] = car2;
         }
-        else {
-            bit_string[index] = '1';
-        }
-        index -= 1;
-        n /= 2;
+        pseudo[10] = '\0';
+
+        //On élimine les #
+        char * realpseudo = get_real_name(pseudo);
+        free(pseudo);
+
+        return msg_client_constr(codereq, id, 0, 0 , 0 , realpseudo, 1);
     }
 
-    //printf("Binary : %s\n", bit_string);
-}
+    //NUMFIL ET NB
+    int numfil = ntohs(msg[1]);
+    int nb = ntohs(msg[2]);
 
-int charbit_to_int(char * bits, size_t length) {
-    int ret = 0;
-    int acc = 1;
+    //DATA
+    uint16_t datalenData = ntohs(msg[3]);
+    int datalen = (datalenData >> 8);
+    char car1 = (char)(datalenData - (datalen << 8));
 
-    for (int i = length; i >= 0; i--, acc*=2){
-        ret += (bits[i] - '0') * acc;
-    }
-    
-    return ret;
+    //Si datalen = 0, erreur...
+    if(datalen <= 0) { perror("Null data, exiting\n"); exit(1); }
+
+    //On alloue une chaine de taille datalen+1
+    char * finalData = malloc((datalen+1) * sizeof(char) );
+    //On ajoute le premier caractère
+    finalData[0] = car1;
+    //printf("%c \n", finalData[0]);
+    int data_pointer = 1;
+
+        for(int i = 4; data_pointer < datalen ; data_pointer += 2, i++){
+
+            uint16_t cars = ntohs(msg[i]);
+            //printf("%d \n", msg[i]);
+            
+            //On prends les deux caractères représentés par l'octet...
+            uint16_t car1_int = (cars >> 8); 
+            char car1 = (char)car1_int;
+            char car2 = (data_pointer+1 < datalen) ? (char)(cars - (car1_int << 8)) : '\0';
+
+            //printf("%c %c\n", car1, car2);
+
+            //... or si i ou i+1 dépasse datalen, c'est qu'on a fini
+            finalData[data_pointer] = car1;
+            if(car1 == '\0') break;
+            finalData[data_pointer+1] = car2;
+            if(car2 == '\0') break;
+
+        }
+
+    return msg_client_constr(codereq, id, numfil, nb, datalen, finalData, 0);
 }
