@@ -42,17 +42,7 @@ uint16_t * msg_client_to_send(msg_client struc){
 
     //ENTETE
     //CODEREQ | ID
-<<<<<<< msg_client.c
     msg[0] = htons((struc.codereq << 11) + struc.id) ;
-=======
-    int entete = htons((struc.codereq << 11) + struc.id);
-    msg[0] = malloc(2);
-
-    memcpy(msg[0], &entete, 2); 
-
-    print_2bytes(msg[0]);
-
->>>>>>> msg_client.c
 
     //En cas d'inscription
     if(struc.is_inscript){
@@ -96,7 +86,6 @@ uint16_t * msg_client_to_send(msg_client struc){
     return msg; 
 }
 
-<<<<<<< msg_client.c
 //Elimine les # en fin de chaine, alloue la valeur de retour
 char * get_real_name(const char * placeholder){
     int i = 0;
@@ -108,11 +97,6 @@ char * get_real_name(const char * placeholder){
 }
 
 msg_client * tcp_to_msgclient(uint16_t * msg) {
-=======
-
-msg_client * tcp_to_msgclient(char ** msg) {
-    printf("Debut\n");
->>>>>>> msg_client.c
 
     //ENTETE
     //CODEREQ | ID
@@ -136,7 +120,6 @@ msg_client * tcp_to_msgclient(char ** msg) {
         }
         pseudo[10] = '\0';
 
-<<<<<<< msg_client.c
         //On élimine les #
         char * realpseudo = get_real_name(pseudo);
         free(pseudo);
@@ -147,17 +130,6 @@ msg_client * tcp_to_msgclient(char ** msg) {
     //NUMFIL ET NB
     int numfil = ntohs(msg[1]);
     int nb = ntohs(msg[2]);
-=======
-    //printf("Entete binaire : %s", entete_string);
-    print_2bytes(msg[0]);
-
-    printf("Seuil\n");
-    char * codereq_string = malloc(5);
-    if (codereq_string == NULL) { perror("Erreur malloc"); return NULL; }
-    strncpy(codereq_string, entete_string, 5);
-
-    int codereq = charbit_to_int(codereq_string, 5);
->>>>>>> msg_client.c
 
     //DATA
     uint16_t datalenData = ntohs(msg[3]);
@@ -167,16 +139,12 @@ msg_client * tcp_to_msgclient(char ** msg) {
     //Si datalen = 0, erreur...
     if(datalen <= 0) { perror("Null data, exiting\n"); exit(1); }
 
-<<<<<<< msg_client.c
     //On alloue une chaine de taille datalen+1
     char * finalData = malloc((datalen+1) * sizeof(char) );
     //On ajoute le premier caractère
     finalData[0] = car1;
     //printf("%c \n", finalData[0]);
     int data_pointer = 1;
-=======
-    int id = charbit_to_int(id_string, 11);
->>>>>>> msg_client.c
 
         for(int i = 4; data_pointer < datalen ; data_pointer += 2, i++){
 
@@ -200,17 +168,3 @@ msg_client * tcp_to_msgclient(char ** msg) {
 
     return msg_client_constr(codereq, id, numfil, nb, datalen, finalData, 0);
 }
-<<<<<<< msg_client.c
-=======
-
-int charbit_to_int(char * bits, size_t length) {
-    int ret = 0;
-    int acc = 1;
-
-    for (int i = length; i >= 0; i--, acc*=2){
-        ret += (bits[i] - '0') * acc;
-    }
-    
-    return ret;
-}
->>>>>>> msg_client.c
