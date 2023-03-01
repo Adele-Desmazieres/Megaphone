@@ -10,7 +10,6 @@
 #include "msg_client.h"
 
 
-
 msg_client* msg_client_constr(int codereq, int id, int numfil, int nb, int datalen, char* data, int is_inscript){
     msg_client *ret = malloc(sizeof(msg_client));
     if(ret == NULL){
@@ -32,8 +31,6 @@ msg_client* msg_client_constr(int codereq, int id, int numfil, int nb, int datal
 //Transforme un struct msg_client en un "message" pour TCP
 char** msg_client_to_send(msg_client struc){
 
-    printf("DEBUT\n");
-
     //Taille arbitraire pour le moment?
     char ** msg = malloc(sizeof(char *) * 1024);
 
@@ -41,8 +38,6 @@ char** msg_client_to_send(msg_client struc){
     //CODEREQ | ID
     int entete = htons(struc.codereq) << 11 | htons(struc.id) ;
     memcpy(&msg[0], &entete, sizeof(entete) ); 
-
-    printf("Probleme entete\n");
 
     //En cas d'inscription
     if(!struc.is_inscript){
@@ -59,11 +54,10 @@ char** msg_client_to_send(msg_client struc){
                 car2 = struc.data[i+1];
             }
 
-            char * octet1[9]; char * octet2[9];
+            char octet1[9]; char octet2[9];
             if (octet1 == NULL || octet2 == NULL) { perror("malloc"); return NULL; }
-
-            int_to_bit_string(car1, octet1);
-            int_to_bit_string(car2, octet2);
+            int_to_bit_string(car1, octet1, 9);
+            int_to_bit_string(car2, octet2, 9);
             //itoa(car1, octet1, 2); itoa(car2, octet2, 2); 
 
             char* couple = strcat(octet1, octet2);
@@ -92,7 +86,7 @@ char** msg_client_to_send(msg_client struc){
     memcpy(&msg[3], &datalen, sizeof(datalen));
     char* first_data_byte = malloc(sizeof(char) * 9);
 
-    int_to_bit_string(struc.data[0], first_data_byte);
+    int_to_bit_string(struc.data[0], first_data_byte, 9);
     //itoa(struc.data[0], first_data_byte, 2);
 
     memcpy(msg[3]+8, first_data_byte, 8);
@@ -106,14 +100,13 @@ char** msg_client_to_send(msg_client struc){
             char car2 = '0';
             if( i < struc.datalen ){
                 car1 = struc.data[i];
-            }
+            }   
             if ( (i+1) < struc.datalen){
                 car2 = struc.data[i+1];
             }
             char * octet1 = malloc(9 * sizeof(char)); char * octet2 = malloc(9 * sizeof(char));
-            printf("Car1 : %c, Car2 : %c", car1, car2);
-            int_to_bit_string(car1, octet1);
-            int_to_bit_string(car2, octet2);
+            int_to_bit_string(car1, octet1, 9);
+            int_to_bit_string(car2, octet2, 9);
             //itoa(car1, octet1, 2); itoa(car2, octet2, 2); 
 
             char* couple = strcat(octet1, octet2);
@@ -124,9 +117,13 @@ char** msg_client_to_send(msg_client struc){
 }
 
 msg_client * tcp_to_msgclient(char ** msg) {
+    printf("Debut\n");
+
     //ENTETE
     //CODEREQ | ID
     char * entete_string = msg[0];
+
+    printf("Entete binaire : %s", entete_string);
 
     char * codereq_string = malloc(5);
     if (codereq_string == NULL) { perror("Erreur malloc"); return NULL; }
@@ -147,17 +144,17 @@ msg_client * tcp_to_msgclient(char ** msg) {
     return NULL;
 }
 
-void int_to_bit_string(int n, char * bit_string) {
-    printf("Ascii : %c, Nb : %d\n", n + '0', n);
+void int_to_bit_string(int n, char * bit_string, size_t length) {
+    //printf("Ascii : %c, Nb : %d\n", n, n);
 
     //On met à 0 toutes les cases de notre bit_string par défaut.
-    memcpy(bit_string, "0", strlen(bit_string));
-    bit_string[strlen(bit_string) - 1] = '\0';
-    int index = strlen(bit_string) - 2;
+    memset(bit_string, '0', length);
+    bit_string[length - 1] = '\0';
+    int index = length - 2;
 
     //On va jusqu'à la fin du nombre pour rajouter bit par bit les puissances de 2.
     while(n > 0) {
-        if (index % 2 == 0) {
+        if (n % 2 == 0) {
             bit_string[index] = '0';
         }
         else {
@@ -166,9 +163,11 @@ void int_to_bit_string(int n, char * bit_string) {
         index -= 1;
         n /= 2;
     }
+
+    //printf("Binary : %s\n", bit_string);
 }
 
-int bit_to_int(char * bits) {
+int charbit_to_int(char * bits, size_t length) {
     int i = strlen(bits);
     
     return 0;

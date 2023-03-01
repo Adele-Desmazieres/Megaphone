@@ -17,11 +17,11 @@ int main(int argc, char *argv[]) {
     message_client.id = 2;
     message_client.numfil = 5;
     message_client.is_inscript = false;
-    message_client.datalen = 9;
-    message_client.data = "monpseudo";
+    message_client.datalen = 5;
+    message_client.data = "hello";
 
     char ** msgclient_to_tcp = msg_client_to_send(message_client);
-    //msg_client * message_client_from_tcp = tcp_to_msgclient(msgclient_to_tcp);
+    msg_client * message_client_from_tcp = tcp_to_msgclient(msgclient_to_tcp);
 
     return 0;
 }
