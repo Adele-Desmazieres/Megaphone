@@ -9,6 +9,12 @@
 
 #include "msg_client.h"
 
+void print_2bytes(char* bytes){
+    for(int i = 0; i < 16; i++){
+        printf("%c", bytes[i]);
+    }
+    printf("\n");
+}
 
 msg_client* msg_client_constr(int codereq, int id, int numfil, int nb, int datalen, char* data, int is_inscript){
     msg_client *ret = malloc(sizeof(msg_client));
@@ -36,8 +42,13 @@ char** msg_client_to_send(msg_client struc){
 
     //ENTETE
     //CODEREQ | ID
-    int entete = htons(struc.codereq) << 11 | htons(struc.id) ;
-    memcpy(&msg[0], &entete, sizeof(entete) ); 
+    int entete = htons((struc.codereq << 11) + struc.id);
+    msg[0] = malloc(2);
+
+    memcpy(msg[0], &entete, 2); 
+
+    print_2bytes(msg[0]);
+
 
     //En cas d'inscription
     if(!struc.is_inscript){
@@ -116,6 +127,7 @@ char** msg_client_to_send(msg_client struc){
     return msg; 
 }
 
+
 msg_client * tcp_to_msgclient(char ** msg) {
     printf("Debut\n");
 
@@ -123,13 +135,15 @@ msg_client * tcp_to_msgclient(char ** msg) {
     //CODEREQ | ID
     char * entete_string = msg[0];
 
-    printf("Entete binaire : %s", entete_string);
+    //printf("Entete binaire : %s", entete_string);
+    print_2bytes(msg[0]);
 
+    printf("Seuil\n");
     char * codereq_string = malloc(5);
     if (codereq_string == NULL) { perror("Erreur malloc"); return NULL; }
     strncpy(codereq_string, entete_string, 5);
 
-    int codereq = bit_to_int(codereq_string);
+    int codereq = charbit_to_int(codereq_string, 5);
 
     printf("Codereq : %d\n", codereq);
 
@@ -137,7 +151,7 @@ msg_client * tcp_to_msgclient(char ** msg) {
     if (id_string == NULL) { perror("Erreur malloc"); return NULL; }
     strncpy(id_string, entete_string + 5, 11);
 
-    int id = bit_to_int(id_string);
+    int id = charbit_to_int(id_string, 11);
 
     printf("Id : %d\n", id);
 
@@ -168,7 +182,12 @@ void int_to_bit_string(int n, char * bit_string, size_t length) {
 }
 
 int charbit_to_int(char * bits, size_t length) {
-    int i = strlen(bits);
+    int ret = 0;
+    int acc = 1;
+
+    for (int i = length; i >= 0; i--, acc*=2){
+        ret += (bits[i] - '0') * acc;
+    }
     
-    return 0;
+    return ret;
 }
