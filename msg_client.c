@@ -29,39 +29,24 @@ msg_client* msg_client_constr(int codereq, int id, int numfil, int nb, int datal
 }
 
 //Transforme un struct msg_client en un "message" pour TCP
-char** msg_client_to_send(msg_client struc){
+uint16_t * msg_client_to_send(msg_client struc){
 
-    //Taille arbitraire pour le moment?
-    char ** msg = malloc(sizeof(char *) * 1024);
+    //Taille: 6 octets si inscription sinon, dépend de la taille du texte
+    uint16_t * msg = (struc.is_inscript) ? (sizeof(uint16_t) * 6) : (sizeof(uint16_t) * (4 + (strlen(struc.data) - 1) /2) );
 
     //ENTETE
     //CODEREQ | ID
-    int entete = htons(struc.codereq) << 11 | htons(struc.id) ;
-    memcpy(&msg[0], &entete, sizeof(entete) ); 
+    msg[0] = htons(struc.codereq) << 11 | htons(struc.id) ;
 
     //En cas d'inscription
     if(!struc.is_inscript){
         //PSEUDO
-        printf("INSCRIPTION\n");
         for (int i = 0; i < 10; i += 2) {
-            char car1 = '#';
-            char car2 = '#';
+            //En cas de dépassement, on remplit de #
+            char car1 = ( i < strlen(struc.data)) ? struc.data[i] : '#';
+            char car2 = ( i+1 < strlen(struc.data)) ? struc.data[i+1] : '#';
 
-            if( i < strlen(struc.data) ){
-                car1 = struc.data[i];
-            }
-            if ( (i+1) < strlen(struc.data)){
-                car2 = struc.data[i+1];
-            }
-
-            char octet1[9]; char octet2[9];
-            if (octet1 == NULL || octet2 == NULL) { perror("malloc"); return NULL; }
-            int_to_bit_string(car1, octet1, 9);
-            int_to_bit_string(car2, octet2, 9);
-            //itoa(car1, octet1, 2); itoa(car2, octet2, 2); 
-
-            char* couple = strcat(octet1, octet2);
-            memcpy(&msg[(i/2)+1], couple, strlen(couple) );
+            msg[(i/2) + 1] = htons(((int)car1  << 8) + (int)car2);
         }
 
         return msg;
@@ -70,105 +55,99 @@ char** msg_client_to_send(msg_client struc){
     printf("Numfil\n");
 
     //NUMFIL
-    int numfil = htons(struc.numfil);
-    memcpy(&msg[1], &numfil, sizeof(numfil));
+    msg[1] = htons(struc.numfil);
 
     printf("Nb\n");
 
     //NB
-    int nb = htons(struc.nb);
-    memcpy(&msg[2], &nb, sizeof(nb));
+    msg[2] = htons(struc.nb);
 
     printf("Data\n");
 
     //DATALEN | DATA[0]
-    unsigned short datalen = (unsigned short)(struc.datalen);
-    memcpy(&msg[3], &datalen, sizeof(datalen));
-    char* first_data_byte = malloc(sizeof(char) * 9);
-
-    int_to_bit_string(struc.data[0], first_data_byte, 9);
-    //itoa(struc.data[0], first_data_byte, 2);
-
-    memcpy(msg[3]+8, first_data_byte, 8);
-    free(first_data_byte);
+    msg[3] = htons( (struc.datalen << 8) + (int)struc.data[0] );
 
     printf("Data restant\n");
     
     //DATA restant
     for (int i = 2; i < struc.datalen; i += 2) {
-            char car1 = '0';
-            char car2 = '0';
-            if( i < struc.datalen ){
-                car1 = struc.data[i];
-            }   
-            if ( (i+1) < struc.datalen){
-                car2 = struc.data[i+1];
-            }
-            char * octet1 = malloc(9 * sizeof(char)); char * octet2 = malloc(9 * sizeof(char));
-            int_to_bit_string(car1, octet1, 9);
-            int_to_bit_string(car2, octet2, 9);
-            //itoa(car1, octet1, 2); itoa(car2, octet2, 2); 
+        //En cas de dépassement on remplit par des #, comme pour le pseudo
+            char car1 = ( i < strlen(struc.data)) ? struc.data[i] : '#';
+            char car2 = ( i+1 < strlen(struc.data)) ? struc.data[i+1] : '#';
 
-            char* couple = strcat(octet1, octet2);
-            memcpy(&msg[(i/2)+4], couple, strlen(couple) );
-            free(octet1); free(octet2);
+            msg[(i/2) + 4] = htons(((int)car1 << 8) + (int)car2);
     }
     return msg; 
 }
 
-msg_client * tcp_to_msgclient(char ** msg) {
+//Elimine les # en fin de chaine, alloue la valeur de retour
+char * get_real_name(const char * placeholder){
+    int i = 0;
+    for(; *placeholder != '\0' && *placeholder != '#'; placeholder++; i++){}
+    char * ret = malloc(sizeof(char) * (i+1));
+    strncat(ret, placeholder, i);
+
+    return ret;
+}
+
+msg_client * tcp_to_msgclient(uint16_t * msg) {
     printf("Debut\n");
 
     //ENTETE
     //CODEREQ | ID
-    char * entete_string = msg[0];
+    uint16_t entete = ntohs(msg[0]);
+    int codereq = (entete >> 11);
+    int id = entete - (codereq << 11);
 
-    printf("Entete binaire : %s", entete_string);
-
-    char * codereq_string = malloc(5);
-    if (codereq_string == NULL) { perror("Erreur malloc"); return NULL; }
-    strncpy(codereq_string, entete_string, 5);
-
-    int codereq = bit_to_int(codereq_string);
-
-    printf("Codereq : %d\n", codereq);
-
-    char * id_string = malloc(11);
-    if (id_string == NULL) { perror("Erreur malloc"); return NULL; }
-    strncpy(id_string, entete_string + 5, 11);
-
-    int id = bit_to_int(id_string);
-
-    printf("Id : %d\n", id);
-
-    return NULL;
-}
-
-void int_to_bit_string(int n, char * bit_string, size_t length) {
-    //printf("Ascii : %c, Nb : %d\n", n, n);
-
-    //On met à 0 toutes les cases de notre bit_string par défaut.
-    memset(bit_string, '0', length);
-    bit_string[length - 1] = '\0';
-    int index = length - 2;
-
-    //On va jusqu'à la fin du nombre pour rajouter bit par bit les puissances de 2.
-    while(n > 0) {
-        if (n % 2 == 0) {
-            bit_string[index] = '0';
+    if( codereq == 1 ) {
+        char * pseudo = malloc(11 * sizeof(char));
+        for(int i = 1; i < 6; i++){
+            uint16_t cars = ntohs(msg[i]);
+            char car1 = (char)(cars >> 8);
+            char car2 = (char)(cars - (car1 << 8));
+            pseudo[((i-1)*2)] = car1;
+            pseudo[((i-1)*2)+1] = car2;
         }
-        else {
-            bit_string[index] = '1';
-        }
-        index -= 1;
-        n /= 2;
+        pseudo[10] = '\0';
+
+        //On élimine les #
+        char * realpseudo = get_real_name(pseudo);
+        free(pseudo);
+
+        return msg_client_constr(codereq, id, 0, 0 , 0 , realpseudo, 1);
     }
 
-    //printf("Binary : %s\n", bit_string);
-}
+    //NUMFIL ET NB
+    int numfil = ntohs(msg[1]);
+    int nb = ntohs(msg[2]);
 
-int charbit_to_int(char * bits, size_t length) {
-    int i = strlen(bits);
-    
-    return 0;
+    //DATA
+    uint16_t datalenData = ntohs(msg[3]);
+    int datalen = (datalenData >> 8);
+    char car1 = (char)(datalenData - (datalen << 8));
+
+    //Si datalen = 0, erreur...
+    if(datalen == 0) { perror("Null data, exiting\n"); exit(1); }
+
+    //On alloue une chaine de taille datalen+1
+    char * finalData = malloc((datalen+1) * sizeof(char) );
+    //On ajoute le premier caractère
+    finalData[0] = car1;
+
+        for(int i = 1; i < datalen; i++){
+
+            uint16_t cars = ntohs(msg[i/2]);
+            
+            //On prends les deux caractères représentés par l'octet...
+            char car1 = (i < datalen) ? (char)(cars >> 8) : '\0';
+            char car2 = (i+1 < datalen) ? (char)(cars - (car1 << 8)) : '\0';
+
+            //... or si i ou i+1 dépasse datalen, c'est qu'on a fini
+            finalData[i] = car1;
+            if(car1 == '\0') break;
+            finalData[i+1] = car2;
+            if(car2 == '\0') break;
+        }
+
+    return msg_client_constr(codereq, id, numfil, nb, datalen, finalData, 0);
 }
