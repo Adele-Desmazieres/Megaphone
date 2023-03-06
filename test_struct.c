@@ -11,6 +11,8 @@
 
 #include "test_struct.h"
 #include "msg_client.h"
+#include "serveur.h"
+#include "client.h"
 
 int main(int argc, char *argv[]) {
     msg_client message_client;
@@ -29,7 +31,9 @@ int main(int argc, char *argv[]) {
     printf("data = %s \n",message_client_from_tcp->data);
     printf("numfil = %d\n", message_client_from_tcp->numfil);
 
+    return 0;
+}
 
-
+int test_serveur() {
     return 0;
 }
