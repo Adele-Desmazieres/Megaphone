@@ -113,6 +113,7 @@ billet * get_n_derniers_billets(fil * f, int n){
     if(n > f->nb_de_msg) n = f->nb_de_msg;
 
     billet * ret = malloc(n * sizeof(billet));
+    if(ret == NULL) perror("malloc get n billets\n");
 
     billet * billet_tmp = f->premier_msg;
     while(billet_tmp->suiv != NULL) billet_tmp = billet_tmp->suiv;
@@ -126,6 +127,20 @@ billet * get_n_derniers_billets(fil * f, int n){
     }
 
     return ret;
+}
+
+//RENVOIE LES N DERNIERS MESSAGES DU FIL DE NUMERO ID, NULL SI ID N'EXISTE PAS
+//A FREE MANUELLEMENT
+
+billet * get_n_derniers_billets_from_id(liste_fils * l ,int id, int n){
+
+    fil * tmp = l->premier_fil;
+    while(tmp != NULL && tmp->id != id) tmp = tmp->suiv;
+
+    if(tmp == NULL) return NULL;
+
+    return get_n_derniers_billets(tmp, n);
+
 }
 
 //LIBERE LA MEMOIRE OCCUPEE PAR UN FIL F
