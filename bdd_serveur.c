@@ -1,9 +1,5 @@
 
-
-
-
-
-
+#include "bdd_serveur.h"
 
 /*
 
@@ -11,42 +7,6 @@
 
 
 */
-
-
-
-
-
-
-//STRUCTURE BILLET
-typedef struct billet billet;
-typedef struct billet {
-    char * texte;
-    char * auteur;
-    billet * prec;
-    billet * suiv;
-};
-
-//STRUCTURE FIL
-typedef struct fil fil;
-typedef struct fil {
-
-    int id;
-    int nb_de_msg;
-    billet * premier_msg;
-
-    fil * suiv;
-    
-};
-
-//LISTE DE FILS
-typedef struct liste_fils{
-    int nb_de_fils;
-    fil * premier_fil;
-} liste_fils;
-
-
-
-
 
 
 //CONSTRUIS UN BILLET, THEORIQUEMENT INTERNE
@@ -200,26 +160,7 @@ void free_liste_fils(liste_fils * l){
 
 }
 
-//NOEUD POUR LA LISTE DES UTILISATEURS INSCRITS
 
-typedef struct user_listnode user_listnode;
-typedef struct user_listnode {
-
-    char * pseudo;
-    int id;
-
-    user_listnode * suiv;
-
-};
-
-//LISTE DES UTILISATEURS INSCRITS
-
-typedef struct user_list {
-
-    int len;
-    user_listnode * first;
-
-} user_list;
 
 //CONSTRUCTEUR DE NOEUD, NORMALEMENT INTERNE
 
@@ -273,7 +214,7 @@ int add_user(user_list * l, char * name){
 
     if(is_in_userlist(l, name)) return 0;
 
-    user_listnode * newuser = user_list_constr(name, l->len);
+    user_listnode * newuser = user_listnode_constr(name, l->len);
 
     if(l->first == NULL){
 
@@ -334,5 +275,26 @@ void free_userlist(user_list * l){
     }
 
     free(l);
+
+}
+
+int main(void){
+
+    user_list * ul = user_list_constr();
+    liste_fils * tl = liste_fils_constr();
+
+    printf("Ajout %d\n", add_user(ul, "luzog"));
+    printf("Ajout %d\n", add_user(ul, "luzog"));
+    printf("Ajout %d\n", add_user(ul, "deltachat"));
+
+    printf("Identifiant de luzog %d\n", get_id(ul,"luzog"));
+    printf("luzog? : %s\n", get_name(ul, get_id(ul, "luzog")));
+
+    
+
+
+
+    free_userlist(ul);
+    free_liste_fils(tl);
 
 }
