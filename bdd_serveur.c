@@ -281,8 +281,9 @@ void free_userlist(user_list * l){
 
     free(l);
 
-/*
 }
+
+/*
 
 int main(void){
 
