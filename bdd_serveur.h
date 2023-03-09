@@ -1,10 +1,4 @@
 
-#include <stdlib.h>
-#include <string.h>
-#include <stddef.h>
-#include <stdio.h>
-
-
 //STRUCTURE BILLET
 typedef struct billet billet;
 typedef struct billet {
