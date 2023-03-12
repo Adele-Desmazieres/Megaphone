@@ -42,7 +42,7 @@ uint16_t * msg_client_to_send(msg_client struc){
 
     //ENTETE
     //CODEREQ | ID
-    msg[0] = htons((struc.codereq << 11) + struc.id) ;
+    msg[0] = htons((struc.id << 5) + struc.codereq) ;
 
     //En cas d'inscription
     if(struc.is_inscript){
@@ -55,7 +55,7 @@ uint16_t * msg_client_to_send(msg_client struc){
 
             //printf("%c %c \n", car1, car2);
 
-            msg[(i/2) + 1] = htons(((int)car1  << 8) + (int)car2);
+            msg[(i/2) + 1] = htons(((int)car2  << 8) + (int)car1);
         }
 
         return msg;
@@ -68,7 +68,7 @@ uint16_t * msg_client_to_send(msg_client struc){
     msg[2] = htons(struc.nb);
 
     //DATALEN | DATA[0]
-    msg[3] = htons( (struc.datalen << 8) + (int)struc.data[0] );
+    msg[3] = htons( ((int)struc.data[0] << 8) + struc.datalen );
     
     //DATA restant
     int data_pointer = 1;
@@ -78,7 +78,7 @@ uint16_t * msg_client_to_send(msg_client struc){
             char car2 = ( data_pointer+1 < strlen(struc.data)) ? struc.data[data_pointer+1] : '#';
 
             //printf("%c %c \n", car1, car2);
-            msg[i] = htons(((int)car1 << 8) + (int)car2);
+            msg[i] = htons(((int)car2 << 8) + (int)car1);
 
             //printf("%d \n", msg[i]);
             
@@ -101,8 +101,8 @@ msg_client * tcp_to_msgclient(uint16_t * msg) {
     //ENTETE
     //CODEREQ | ID
     uint16_t entete = ntohs(msg[0]);
-    int codereq = (entete >> 11);
-    int id = entete - (codereq << 11);
+    int id = (entete >> 5);
+    int codereq = entete - (id << 5);
 
     if( codereq == 1 ) {
         //printf("ICI\n");
@@ -115,8 +115,8 @@ msg_client * tcp_to_msgclient(uint16_t * msg) {
 
             //printf("%c %c\n", car1, car2);
 
-            pseudo[pseudo_pointer] = car1;
-            pseudo[pseudo_pointer+1] = car2;
+            pseudo[pseudo_pointer] = car2;
+            pseudo[pseudo_pointer+1] = car1;
         }
         pseudo[10] = '\0';
 
@@ -133,8 +133,8 @@ msg_client * tcp_to_msgclient(uint16_t * msg) {
 
     //DATA
     uint16_t datalenData = ntohs(msg[3]);
-    int datalen = (datalenData >> 8);
-    char car1 = (char)(datalenData - (datalen << 8));
+    char car1 = (char)(datalenData >> 8);
+    int datalen = (datalenData - ((int)car1 << 8));
 
     //Si datalen = 0, erreur...
     if(datalen <= 0) { perror("Null data, exiting\n"); exit(1); }
@@ -159,10 +159,10 @@ msg_client * tcp_to_msgclient(uint16_t * msg) {
             //printf("%c %c\n", car1, car2);
 
             //... or si i ou i+1 dépasse datalen, c'est qu'on a fini
-            finalData[data_pointer] = car1;
-            if(car1 == '\0') break;
-            finalData[data_pointer+1] = car2;
+            finalData[data_pointer] = car2;
             if(car2 == '\0') break;
+            finalData[data_pointer+1] = car1;
+            if(car1 == '\0') break;
 
         }
 

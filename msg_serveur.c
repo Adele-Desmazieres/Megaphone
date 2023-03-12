@@ -33,7 +33,7 @@ uint16_t * msg_serveur_to_send(msg_serveur struc){
 
     //ENTETE
     //CODEREQ | ID
-    msg[0] = htons((struc.codereq << 11) + struc.id) ;
+    msg[0] = htons((struc.id << 5) + struc.codereq) ;
 
     //NUMFIL
     msg[1] = htons(struc.numfil);
@@ -49,8 +49,8 @@ msg_serveur * tcp_to_msgserveur(uint16_t * msg) {
     //ENTETE
     //CODEREQ | ID
     uint16_t entete = ntohs(msg[0]);
-    int codereq = (entete >> 11);
-    int id = entete - (codereq << 11);
+    int id = (entete >> 5);
+    int codereq = entete - (id << 5);
 
     //NUMFIL ET NB
     int numfil = ntohs(msg[1]);
