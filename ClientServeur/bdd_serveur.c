@@ -7,10 +7,9 @@
 #include "bdd_serveur.h"
 
 /*
-
-        TOUTES LES CHAINES DE CARACTERES SONT PASSEES PAR COPIES AUX STRUCTURES, CA VEUT DIRE QU'ELLES SONT MALLOC'd A CHAQUE AJOUT ET QU'ELLES SONT LIBEREES EN UTILISANT LES FONCTIONS DE FREE ICI
-
-
+    TOUTES LES CHAINES DE CARACTERES SONT PASSEES PAR COPIES AUX STRUCTURES, 
+    CA VEUT DIRE QU'ELLES SONT MALLOC'd A CHAQUE AJOUT ET QU'ELLES SONT LIBEREES EN UTILISANT 
+    LES FONCTIONS DE FREE ICI.
 */
 
 
@@ -51,6 +50,23 @@ fil * fil_constr(char * auteur, char * texte){
 
 }
 
+//Récupère le fil par le numéro de fil passé en parametre, renvoie NULL si non trouvé.
+fil * get_fil_id(liste_fils * l, int numfil) {
+
+    int index = 1;
+    fil * current = l -> premier_fil;
+    while (index != numfil || current -> suiv != NULL) {
+        index += 1;
+        current = current -> suiv;
+    }
+
+    if (index == numfil) {
+        return current;
+    }
+
+    return NULL;
+}
+
 //CONSTRUIS UNE LISTE VIDE DE FILS
 
 liste_fils * liste_fils_constr(){
@@ -65,25 +81,26 @@ liste_fils * liste_fils_constr(){
 
 }
 
-//AJOUTE UN FIL F A UNE LISTE DE FILS L
+//AJOUTE UN FIL F A UNE LISTE DE FILS L, RENVOIE LE NUMERO DU NOUVEAU FIL
 
-void ajouter_fil(liste_fils * l, fil * f){
+int ajouter_fil(liste_fils * l, fil * f) {
 
     if(l->premier_fil == NULL){
         l->premier_fil = f;
         f->id = l->nb_de_fils;
         l->nb_de_fils++;
-        return;
+        return 1;
     }
 
+    int index = 1;
     fil * tmp = l->premier_fil;
-    while(tmp->suiv != NULL) tmp = tmp->suiv;
+    while(tmp->suiv != NULL) { index += 1; tmp = tmp->suiv; }
 
     tmp->suiv = f;
     f->id = l->nb_de_fils;
     l->nb_de_fils ++;
 
-    return;
+    return index + 1;
 
 }
 
