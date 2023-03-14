@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -pedantic -g -lreadline
-HEAD = msg_client.h test_struct.c client.c serveur.c
-OBJ_EXEC = msg_client.o test_struct.o client.o serveur.o
+HEAD = ClientServeur/client.h ClientServeur/serveur.h ClientServeur/bdd_serveur.h ClientServeur/interpreteur.h MessageStruct/msg_client.h MessageStruct/msg_serveur.h test_struct.c
+OBJ_EXEC = ClientServeur/client.o ClientServeur/serveur.o ClientServeur/bdd_serveur.o ClientServeur/interpreteur.o MessageStruct/msg_client.o MessageStruct/msg_serveur.o test_struct.o
 EXEC = test_struct
 
 build: $(EXEC) $(OBJ_EXEC)

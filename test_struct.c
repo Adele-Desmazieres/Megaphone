@@ -10,9 +10,9 @@
 #include <stdint.h>
 
 #include "test_struct.h"
-#include "msg_client.h"
-#include "serveur.h"
-#include "client.h"
+#include "MessageStruct/msg_client.h"
+#include "ClientServeur/serveur.h"
+#include "ClientServeur/client.h"
 
 int main(int argc, char *argv[]) {
     msg_client message_client;

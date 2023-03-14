@@ -1,4 +1,4 @@
-#include "msg_client.h"
+#include "../MessageStruct/msg_client.h"
 
 //Créé le serveur, renvoie 1 si raté et sinon appelle les autres fonctions de communication.
 int creation_serveur();

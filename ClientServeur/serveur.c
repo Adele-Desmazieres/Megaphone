@@ -10,8 +10,8 @@
 #include <pthread.h>
 
 #include "serveur.h"
-#include "msg_client.h"
-#include "msg_serveur.h"
+#include "../MessageStruct/msg_client.h"
+#include "../MessageStruct/msg_serveur.h"
 #include "bdd_serveur.h"
 
 #define SIZE_MSG 512
