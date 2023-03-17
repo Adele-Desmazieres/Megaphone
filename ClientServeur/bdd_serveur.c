@@ -149,6 +149,7 @@ billet * get_n_derniers_billets(fil * f, int n){
 //RENVOIE LES N DERNIERS MESSAGES DU FIL DE NUMERO ID, NULL SI ID N'EXISTE PAS
 //A FREE MANUELLEMENT
 
+
 billet * get_n_derniers_billets_from_id(liste_fils * l ,int id, int n){
 
     fil * tmp = l->premier_fil;

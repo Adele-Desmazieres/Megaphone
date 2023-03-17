@@ -105,15 +105,13 @@ msg_client * tcp_to_msgclient(uint16_t * msg) {
     int codereq = entete - (id << 5);
 
     if( codereq == 1 ) {
-        //printf("ICI\n");
+
         char * pseudo = malloc(11 * sizeof(char));
         int pseudo_pointer = 0;
         for(int i = 1; pseudo_pointer < 11; pseudo_pointer += 2, i++){
             uint16_t cars = ntohs(msg[i]);
             char car1 = (char)(cars >> 8);
             char car2 = (char)(cars - (car1 << 8));
-
-            //printf("%c %c\n", car1, car2);
 
             pseudo[pseudo_pointer] = car2;
             pseudo[pseudo_pointer+1] = car1;

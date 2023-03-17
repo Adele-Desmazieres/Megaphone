@@ -52,6 +52,7 @@ billet * billet_constr(char * auteur, char * texte);
 fil * fil_constr(char * auteur, char * texte);
 fil * get_fil_id(liste_fils * l, int numfil);
 void ajouter_billet(fil * f, char * auteur, char * texte);
+billet * get_n_derniers_billets(fil * f, int n);
 billet * get_n_derniers_billets_from_id(liste_fils * l ,int id, int n);
 void free_fil(fil * f);
 

@@ -150,7 +150,7 @@ void * communication_client(void * arg_base_serveur) {
             }
         //L'utilisateur demande la liste des n derniers billets
         case 3 :
-            liste_n_billets();
+            liste_n_billets(sockcli, base_serv->liste_fils);
         //l'utilisateur veut s'abonner à un fil.
         case 4 :
             abonner_fil();
@@ -224,8 +224,107 @@ int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * 
     return num_fil;
 }
 
-void liste_n_billets() {
+void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_client) {
     
+    //On envoie la première réponse
+
+    int numfil = (msg_client->numfil > 0) ? msg_client -> numfil : liste_fils -> nb_de_fils ;
+    int nb;
+
+    //SI UN SEUL FIL
+    if(numfil != 0){
+
+        nb = (msg_client->nb > get_fil_id (liste_fils, numfil) || msg_client->nb == 0) ? ( get_fil_id(liste_fils , numfil) -> nb_de_msg ) : msg_client->nb ;
+
+        //On envoie le premier message annoncant le nombre de messages qui vont suivre
+        msg_serveur prem_reponse = {msg_client->codereq, msg_client->id, numfil, nb};
+        uint16_t * prem_reponse_a_envoyer = msg_serveur_to_send(prem_reponse);
+
+        int snd = send(sockcli, prem_reponse_a_envoyer, 512, 0);
+        if (snd <= 0){
+            perror("Erreur envoi réponse\n");
+        }
+
+        //On récupère le fil choisi
+        fil * fil = get_fil_id(liste_fils, numfil);
+        int nb_billets = (nb > fil->nb_de_msg) ? fil->nb_de_msg : nb;
+
+        //On parcourt ses n derniers billets
+        billet * billets_a_envoyer = get_n_derniers_billets(fil, nb_billets);
+        for(int i = 0; i < nb_billets; i++){
+
+            billet actuel = billets_a_envoyer[i];
+            msg_billet_envoi a_envoyer = { numfil, strlen(actuel.texte), fil->premier_msg->auteur, actuel.auteur, actuel.texte};
+            uint16_t * msg_a_envoyer = msg_billet_to_send(a_envoyer);
+
+            //On envoie le billet actuel
+            snd = send(sockcli, msg_a_envoyer, 512, 0);
+            if (snd <= 0){
+                perror("Erreur envoi réponse\n");
+            }
+
+            free(msg_a_envoyer);
+
+        }
+
+        free(billets_a_envoyer);
+
+        return;
+
+    }
+
+    //SI TOUS LES FILS
+
+    //NOMBRE REEL DE BILLETS A ENVOYER PAR FIL
+    int nbr_billets[liste_fils-> nb_de_fils];
+
+    //On parcourt la liste des fils pour récupérer le nombre réel de billets à envoyer selon le fil
+    fil * tmp = liste_fils->premier_fil;
+    for(int i = 0; i < liste_fils->nb_de_fils; i++, tmp = tmp->suiv){
+        nbr_billets[i] = (msg_client -> nb > tmp->nb_de_msg) ? tmp->nb_de_msg : msg_client -> nb;
+        nb += nbr_billets[i];
+    }
+
+    //On envoie le premier message annoncant le nombre de messages qui vont suivre
+    msg_serveur prem_reponse = {msg_client->codereq, msg_client->id, numfil, nb};
+    uint16_t * prem_reponse_a_envoyer = msg_serveur_to_send(prem_reponse);
+
+    int snd = send(sockcli, prem_reponse_a_envoyer, 512, 0);
+    if (snd <= 0){
+        perror("Erreur envoi réponse\n");
+    }
+
+    free(prem_reponse_a_envoyer);
+
+    //On parcourt la liste des fils
+    tmp = liste_fils->premier_fil;
+    for(int i = 0; i < liste_fils->nb_de_fils; i++, tmp = tmp->suiv){
+
+        //on récupère la liste des billets de ce fil actuel
+        billet * billets_pour_fil_actuel = get_n_derniers_billets(tmp, nbr_billets[i]);
+        for(int j = 0; j < nbr_billets[i]; j++){
+
+            //On transforme le billet actuel en message à envoyer
+            billet actuel = billets_pour_fil_actuel[j];
+            msg_billet_envoi a_envoyer = { tmp->id, strlen(actuel.texte), tmp->premier_msg->auteur, actuel.auteur, actuel.texte};
+            uint16_t * msg_a_envoyer = msg_billet_to_send(a_envoyer);
+
+            //On l'envoie
+            snd = send(sockcli, msg_a_envoyer, 512, 0);
+            if (snd <= 0){
+                perror("Erreur envoi réponse\n");
+            }
+
+            free(msg_a_envoyer);
+
+        }
+
+        free(billets_pour_fil_actuel);
+
+
+    }
+
+
 }
 
 void abonner_fil() {
