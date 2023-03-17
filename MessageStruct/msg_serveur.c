@@ -101,6 +101,16 @@ uint16_t * msg_billet_to_send(msg_billet_envoi struc){
     return ret;
 }
 
+//Elimine les # en fin de chaine, alloue la valeur de retour
+char * get_real_name(const char * placeholder){
+    int i = 0;
+    for(; *placeholder != '\0' && *placeholder != '#'; placeholder++, i++){}
+    char * ret = malloc(sizeof(char) * (i+1));
+    strncat(ret, placeholder-i, i);
+
+    return ret;
+}
+
 msg_billet_envoi * tcp_to_msgbillet(uint16_t * msg){
 
     msg_billet_envoi * ret = malloc(sizeof(msg_billet_envoi));
@@ -141,7 +151,7 @@ msg_billet_envoi * tcp_to_msgbillet(uint16_t * msg){
         pseudo[10] = '\0';
 
     //On élimine les #
-        char * realpseudo = get_real_name(origine);
+        char * realpseudo = get_real_name(pseudo);
         free(origine);
     
     ret->pseudo = realpseudo;

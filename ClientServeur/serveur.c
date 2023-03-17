@@ -150,7 +150,7 @@ void * communication_client(void * arg_base_serveur) {
             }
         //L'utilisateur demande la liste des n derniers billets
         case 3 :
-            liste_n_billets(sockcli, base_serv->liste_fils);
+            liste_n_billets(sockcli, base_serv->liste_fils, msg_recu_traduit);
         //l'utilisateur veut s'abonner à un fil.
         case 4 :
             abonner_fil();
