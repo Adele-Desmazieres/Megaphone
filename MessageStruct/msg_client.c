@@ -35,10 +35,10 @@ msg_client* msg_client_constr(int codereq, int id, int numfil, int nb, int datal
 }
 
 //Transforme un struct msg_client en un "message" pour TCP
-uint16_t * msg_client_to_send(msg_client struc){
+u_int16_t * msg_client_to_send(msg_client struc){
 
     //Taille: 6 octets si inscription sinon, dépend de la taille du texte
-    uint16_t * msg = (struc.is_inscript) ? malloc(sizeof(uint16_t) * 6) : malloc(sizeof(uint16_t) * (4 + (strlen(struc.data) - 1) /2) );
+    u_int16_t * msg = (struc.is_inscript) ? malloc(sizeof(u_int16_t) * 6) : malloc(sizeof(u_int16_t) * (4 + (strlen(struc.data) - 1) /2) );
 
     //ENTETE
     //CODEREQ | ID
@@ -96,11 +96,11 @@ char * get_real_name(const char * placeholder){
     return ret;
 }
 
-msg_client * tcp_to_msgclient(uint16_t * msg) {
+msg_client * tcp_to_msgclient(u_int16_t * msg) {
 
     //ENTETE
     //CODEREQ | ID
-    uint16_t entete = ntohs(msg[0]);
+    u_int16_t entete = ntohs(msg[0]);
     int id = (entete >> 5);
     int codereq = entete - (id << 5);
 
@@ -109,7 +109,7 @@ msg_client * tcp_to_msgclient(uint16_t * msg) {
         char * pseudo = malloc(11 * sizeof(char));
         int pseudo_pointer = 0;
         for(int i = 1; pseudo_pointer < 11; pseudo_pointer += 2, i++){
-            uint16_t cars = ntohs(msg[i]);
+            u_int16_t cars = ntohs(msg[i]);
             char car1 = (char)(cars >> 8);
             char car2 = (char)(cars - (car1 << 8));
 
@@ -130,7 +130,7 @@ msg_client * tcp_to_msgclient(uint16_t * msg) {
     int nb = ntohs(msg[2]);
 
     //DATA
-    uint16_t datalenData = ntohs(msg[3]);
+    u_int16_t datalenData = ntohs(msg[3]);
     char car1 = (char)(datalenData >> 8);
     int datalen = (datalenData - ((int)car1 << 8));
 
@@ -146,11 +146,11 @@ msg_client * tcp_to_msgclient(uint16_t * msg) {
 
         for(int i = 4; data_pointer < datalen ; data_pointer += 2, i++){
 
-            uint16_t cars = ntohs(msg[i]);
+            u_int16_t cars = ntohs(msg[i]);
             //printf("%d \n", msg[i]);
             
             //On prends les deux caractères représentés par l'octet...
-            uint16_t car1_int = (cars >> 8); 
+            u_int16_t car1_int = (cars >> 8); 
             char car1 = (char)car1_int;
             char car2 = (data_pointer+1 < datalen) ? (char)(cars - (car1_int << 8)) : '\0';
 

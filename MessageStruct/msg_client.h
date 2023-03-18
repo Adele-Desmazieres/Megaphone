@@ -12,7 +12,7 @@ typedef struct msg_client {
 } msg_client;
 
 msg_client * msg_client_constr(int codereq, int id, int numfil, int nb, int datalen, char * data, int is_inscript);
-uint16_t * msg_client_to_send(msg_client struc);
-msg_client * tcp_to_msgclient(uint16_t * msg);
+u_int16_t * msg_client_to_send(msg_client struc);
+msg_client * tcp_to_msgclient(u_int16_t * msg);
 
 #endif

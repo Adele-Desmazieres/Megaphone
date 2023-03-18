@@ -6,8 +6,8 @@
 #include <sys/socket.h>
 
 #include "client.h"
-#include "msg_client.h"
-#include "msg_serveur.h"
+#include "../MessageStruct/msg_client.h"
+#include "../MessageStruct/msg_serveur.h"
 
 
 #define MSG_LIMIT 255
