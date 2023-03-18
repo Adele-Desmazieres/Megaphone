@@ -50,12 +50,14 @@ typedef struct user_list {
 billet * billet_constr(char * auteur, char * texte);
 
 fil * fil_constr(char * auteur, char * texte);
+fil * get_fil_id(liste_fils * l, int numfil);
 void ajouter_billet(fil * f, char * auteur, char * texte);
+billet * get_n_derniers_billets(fil * f, int n);
 billet * get_n_derniers_billets_from_id(liste_fils * l ,int id, int n);
 void free_fil(fil * f);
 
 liste_fils * liste_fils_constr();
-void ajouter_fil(liste_fils * l, fil * f);
+int ajouter_fil(liste_fils * l, fil * f);
 void free_liste_fils(liste_fils * l);
 
 user_listnode * user_listnode_constr(char * name, int id);
