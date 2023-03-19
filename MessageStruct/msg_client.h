@@ -11,8 +11,10 @@ typedef struct msg_client {
     int is_inscript; 
 } msg_client;
 
+void print_2bytes(char* bytes);
 msg_client * msg_client_constr(int codereq, int id, int numfil, int nb, int datalen, char * data, int is_inscript);
 u_int16_t * msg_client_to_send(msg_client struc);
+char * get_real_name(const char * placeholder);
 msg_client * tcp_to_msgclient(u_int16_t * msg);
 
 #endif

@@ -12,10 +12,6 @@
 
 #define SIZE_MSG 512
 
-int main(int argc, char **argv) {
-    return connexion_4();
-}
-
 /*
     Connexion utilisant le protocole IPV4.
 */

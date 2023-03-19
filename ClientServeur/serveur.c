@@ -139,7 +139,7 @@ void * communication_client(void * arg_base_serveur) {
             else {
                 msg_serveur to_send = {1, retour, 0, 0};
                 envoie_reponse_client(sockcli, to_send);
-            }
+            } break;
         //L'utilisateur veut poster un billet.
         case 2 :
             retour = poster_billet(msg_recu_traduit, base_serv -> liste_fils, base_serv -> liste_utilisateurs);
@@ -147,21 +147,21 @@ void * communication_client(void * arg_base_serveur) {
             else {
                 msg_serveur to_send = {2, msg_recu_traduit -> id, retour, 0};
                 envoie_reponse_client(sockcli, to_send);
-            }
+            } break;
         //L'utilisateur demande la liste des n derniers billets
         case 3 :
-            liste_n_billets(sockcli, base_serv->liste_fils, msg_recu_traduit);
+            liste_n_billets(sockcli, base_serv->liste_fils, msg_recu_traduit); break;
         //l'utilisateur veut s'abonner à un fil.
         case 4 :
-            abonner_fil();
+            abonner_fil(); break;
         //L'utilisateur veut envoyer un fichier.
         case 5 :
-            ajouter_fichier();
+            ajouter_fichier(); break;
         //L'utilisateur veut telecharger un fichier.
         case 6 :
-            telecharger_fichier();
+            telecharger_fichier(); break;
         default :
-            envoi_erreur_client(sockcli);
+            envoi_erreur_client(sockcli); break;
     } 
 
     close(sockcli);

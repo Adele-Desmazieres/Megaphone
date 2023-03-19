@@ -4,25 +4,82 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <ctype.h>
 
 #include "client.h"
 #include "../MessageStruct/msg_client.h"
 #include "../MessageStruct/msg_serveur.h"
 
-
 #define MSG_LIMIT 255
 
-
-
 int main() {
+    return interpreteur_utilisateur();
+}
+
+/*
+    Interpreteur du côté utilisateur
+*/
+int interpreteur_utilisateur() {
+    printf("Début de session.\n");
     
+    char str_input[MSG_LIMIT];
+    int session_continue = 1;
+
+    int nbr_input = atoi(str_input);
+
+    int * user_id = malloc(sizeof(int));
+    memset(user_id, 0, sizeof(user_id));
     
-    
+    while (session_continue) {
+        
+        printf("Que voulez-vous faire ? Tapez 7 pour avoir les differentes commandes.\n");
+        fgets(str_input, MSG_LIMIT, stdin);
+
+        if (strlen(str_input) > 1 || !isdigit(str_input[0])) {
+            printf("Veuillez entrer un nombre entre 0 et 7 inclus.\n");
+        }
+
+        else {
+            switch (nbr_input) {
+            
+            case 0: // mettre fin à la session
+                session_continue = 0;
+                break;
+            case 1: // inscription utilisateur.
+                if (*(user_id) != 0) inscription(user_id);
+                else {
+                    printf("Vous vous êtes déjà inscrit.e. ");
+                    printf("Votre identifiant est : %d\n", *user_id);
+                }
+                break;
+            case 2: // poster un billet
+                poster_billet(user_id);
+                break;
+            case 3: // demander la liste des n derniers billets
+                break;
+            case 4: // s'abonner à un fil
+                break;
+            case 5: // poster un fichier
+                break;
+            case 6: // telecharger un fichier
+                break;
+            case 7: // listes des commandes
+                printf("1 : inscription\n2 : poster un billet\n3 : liste des n derniers billets\n");
+                printf("4 : s'abonner à un fil\n5 : poster un fichier\n6 : telecharger un fichier\n");
+                break;
+            default:
+                printf("Le numéro de votre commande n'est pas reconnu. Veuillez re-essayer.\n");
+                break;
+            }
+        }
+    }
+
+    free(user_id);
+
     return 0;
 }
 
-
-/* 
+/*
     Inscrit l'utilisateur : 
     - en cas de réussite, initialise userid et renvoie 0
     - sinon renvoie 1
@@ -78,76 +135,16 @@ int inscription(int *userid) {
 
 }
 
-
-
-
 /*
     Crée un billet et l'envoie au serveur
 */
-int poster_billet() {
+int poster_billet(int *userid) {
     char str_input[MSG_LIMIT];
     printf("Entrez votre message > ");
     fgets(str_input, MSG_LIMIT, stdin);
     
     // TODO transformer la string en struct puis en tableau de données
     // puis l'envoyer au serveur
-    
-    return 0;
-}
-
-/*
-    Interpreteur du côté utilisateur
-*/
-int interpreteur_utilisateur() {
-    printf("Début de session.\n");
-    
-    char str_input[MSG_LIMIT];
-    int session_continue = 1;
-    
-    while (session_continue) {
-        
-        printf("Que voulez-vous faire ?\n");
-        fgets(str_input, MSG_LIMIT, stdin);
-        
-        // TODO vérifier que le charactère d'input est un entier
-        // compris entre 1 et le nombre de valeurs possibles
-        
-        int nbr_input = atoi(str_input);
-        
-        switch (nbr_input) {
-            
-            case 1: // mettre fin à la session
-                session_continue = 0;
-                break;
-            
-            case 2: // poster un billet
-                poster_billet();
-                break;
-            
-            case 3: // demander la liste des n derniers billets
-                
-                break;
-            
-            case 4: // s'abonner à un fil
-                
-                break;
-            
-            case 5: // poster un fichier
-                
-                break;
-            
-            case 6: // telecharger un fichier
-                
-                break;
-            
-            default:
-                break;
-        }
-    }
-    
-    // TODO gérer la fin de la session
-    // mettre fin au programme utilisateur ? 
-    // ou attendre qu'un nouveau identifiant soit entré ?
     
     return 0;
 }
