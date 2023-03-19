@@ -10,71 +10,127 @@
 #include "../MessageStruct/msg_client.h"
 #include "../MessageStruct/msg_serveur.h"
 
+#define ID_LIMIT 10
 #define MSG_LIMIT 255
 
 int main() {
-    return interpreteur_utilisateur();
+    printf("Initialisation du programme client.\n");    
+    int *userid = malloc(sizeof(int));    
+    int ret = 1;
+    
+    while (ret != 0) {
+        ret = inscription_ou_connexion(userid);        
+    }
+    
+    
+    
+    return 0;
 }
+
+/*
+    Page d'accueil lors du lancement du client. 
+    L'utilisateur peut choisir de s'inscrire ou de se connecter. 
+*/
+int inscription_ou_connexion(int *userid) {
+    printf("Page d'accueil.\n");s    
+    char str_input[MSG_LIMIT];
+    
+    printf("Que voulez-vous faire ? Entrez 1 pour vous inscrire, 2 pour vous connecter, et 3 pour arrêter le programme.\n");
+    fgets(str_input, MSG_LIMIT, stdin);
+    
+    while (!isdigit(str_input[0]) | atoi(str_input) > 3 | atoi(str_input) < 0) {
+        printf("Veuillez entrer le nombre 1, 2 ou 3.\n");
+    }
+    
+    int nbr_input = atoi(str_input);
+    int ret = 1;
+    switch (nbr_input) {
+            
+        case 1: // inscription
+            ret = inscription(userid);
+            break;
+            
+        case 2: // connexion
+            ret = connexion(userid);
+            break;
+            
+        case 3: // arret du programme
+            // TODO
+            break;
+        
+        default: 
+            printf("Normalement on ne tombe jamais ici car des vérif préalables l'en empêche.\n");
+            break;
+        
+    }
+    
+    return ret;        
+}
+
 
 /*
     Interpreteur du côté utilisateur
 */
-int interpreteur_utilisateur() {
+int interpreteur_utilisateur(int *userid) {
     printf("Début de session.\n");
     
     char str_input[MSG_LIMIT];
     int session_continue = 1;
 
-    int nbr_input = atoi(str_input);
-
-    int * user_id = malloc(sizeof(int));
-    memset(user_id, 0, sizeof(user_id));
-    
     while (session_continue) {
         
-        printf("Que voulez-vous faire ? Tapez 7 pour avoir les differentes commandes.\n");
+        printf("Que voulez-vous faire ? Entrez un nombre entre 1 et 7 inclus. Entrez 7 pour afficher les différentes commandes.\n");
         fgets(str_input, MSG_LIMIT, stdin);
 
-        if (strlen(str_input) > 1 || !isdigit(str_input[0])) {
-            printf("Veuillez entrer un nombre entre 0 et 7 inclus.\n");
+        if (!isdigit(str_input[0]) | atoi(str_input) > 7 | atoi(str_input) < 0) {
+            printf("Veuillez entrer un nombre entre 1 et 7 inclus.\n");
         }
 
         else {
+            int nbr_input = atoi(str_input);
+            
             switch (nbr_input) {
             
-            case 0: // mettre fin à la session
-                session_continue = 0;
-                break;
-            case 1: // inscription utilisateur.
-                if (*(user_id) != 0) inscription(user_id);
-                else {
-                    printf("Vous vous êtes déjà inscrit.e. ");
-                    printf("Votre identifiant est : %d\n", *user_id);
-                }
-                break;
-            case 2: // poster un billet
-                poster_billet(user_id);
-                break;
-            case 3: // demander la liste des n derniers billets
-                break;
-            case 4: // s'abonner à un fil
-                break;
-            case 5: // poster un fichier
-                break;
-            case 6: // telecharger un fichier
-                break;
-            case 7: // listes des commandes
-                printf("1 : inscription\n2 : poster un billet\n3 : liste des n derniers billets\n");
-                printf("4 : s'abonner à un fil\n5 : poster un fichier\n6 : telecharger un fichier\n");
-                break;
-            default:
-                printf("Le numéro de votre commande n'est pas reconnu. Veuillez re-essayer.\n");
-                break;
+                case 1: // mettre fin à la session
+                    session_continue = 0;
+                    break;
+                    
+                case 2: // poster un billet
+                    poster_billet(userid);
+                    break;
+                    
+                case 3: // demander la liste des n derniers billets
+                
+                    break;
+                    
+                case 4: // s'abonner à un fil
+                
+                    break;
+                    
+                case 5: // poster un fichier
+                
+                    break;
+                    
+                case 6: // telecharger un fichier
+                
+                    break;
+                    
+                case 7: // lister des commandes
+                    printf("1 : déconnexion\n");
+                    printf("2 : poster un message\n");
+                    printf("3 : afficher des messages\n");
+                    printf("4 : s'abonner à un fil\n");
+                    printf("5 : poster un fichier\n");
+                    printf("6 : télécharger un fichier\n");
+                    printf("7 : affichage des commandes\n");
+                    break;
+                    
+                default:
+                    printf("Ce nombre n'est pas dans l'intervalle de 1 à 7. Veuillez entrer un nombre entre 1 et 7 inclus.\n");
+                    break;
             }
         }
     }
-
-    free(user_id);
 
     return 0;
 }
@@ -125,6 +181,7 @@ int inscription(int *userid) {
     
     // réussite
     *userid = rep->id;
+    printf("Prennez en note votre identifiant : %d\n", userid);
     close(sock);
     return 0;
 
@@ -132,7 +189,36 @@ int inscription(int *userid) {
     perror("Erreur connexion au serveur.\n"); 
     close(sock);
     return EXIT_FAILURE;
+}
 
+/*
+    Connexion de l'utilisateur avec son identifiant. 
+    Ne fait aucune vérif quant à l'existence de l'identifiant dans les données du serveur. 
+    Renvoie 0 si réussite, et 1 sinon. 
+*/
+int connexion(int *userid) {
+    char str_input[ID_LIMIT];
+    printf("Entrez votre identifiant donné à l'inscription > ");
+    fgets(str_input, 10, stdin); // 10 = taille max du pseudo, imposé par le sujet
+    int n = strlen(str_input);
+    // quitte la connexion si rien n'est entré
+    if (n == 0) {
+        return 1;
+    }
+    // redemande un identifiant s'il est trop long
+    while (!isdigit(str_input[0])) { 
+        printf("Votre identifiant doit être un nombre entier > ");
+        fgets(str_input, ID_LIMIT, stdin);
+        int n = strlen(str_input);
+        if (n == 0) {
+            return 1;
+        }
+    }
+    
+    // réussite de la connexion
+    *userid = atoi(str_input);
+    printf("Identifiant %d enregistré.\n", userid);
+    return 0;
 }
 
 /*
