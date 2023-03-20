@@ -7,11 +7,15 @@
 #include <ctype.h>
 
 #include "client.h"
+#include "interpreteur.h"
 #include "../MessageStruct/msg_client.h"
 #include "../MessageStruct/msg_serveur.h"
 
 #define ID_LIMIT 10
 #define MSG_LIMIT 255
+
+
+
 
 int main() {
     printf("Initialisation du programme client.\n");    
@@ -32,13 +36,13 @@ int main() {
     L'utilisateur peut choisir de s'inscrire ou de se connecter. 
 */
 int inscription_ou_connexion(int *userid) {
-    printf("Page d'accueil.\n");s    
+    printf("Page d'accueil.\n");
     char str_input[MSG_LIMIT];
     
     printf("Que voulez-vous faire ? Entrez 1 pour vous inscrire, 2 pour vous connecter, et 3 pour arrêter le programme.\n");
     fgets(str_input, MSG_LIMIT, stdin);
     
-    while (!isdigit(str_input[0]) | atoi(str_input) > 3 | atoi(str_input) < 0) {
+    while (!isdigit(str_input[0]) || atoi(str_input) > 3 || atoi(str_input) < 0) {
         printf("Veuillez entrer le nombre 1, 2 ou 3.\n");
     }
     
@@ -51,7 +55,7 @@ int inscription_ou_connexion(int *userid) {
             break;
             
         case 2: // connexion
-            ret = connexion(userid);
+            ret = connexion_6(userid);
             break;
             
         case 3: // arret du programme
@@ -82,7 +86,7 @@ int interpreteur_utilisateur(int *userid) {
         printf("Que voulez-vous faire ? Entrez un nombre entre 1 et 7 inclus. Entrez 7 pour afficher les différentes commandes.\n");
         fgets(str_input, MSG_LIMIT, stdin);
 
-        if (!isdigit(str_input[0]) | atoi(str_input) > 7 | atoi(str_input) < 0) {
+        if (!isdigit(str_input[0]) || atoi(str_input) > 7 || atoi(str_input) < 0) {
             printf("Veuillez entrer un nombre entre 1 et 7 inclus.\n");
         }
 
@@ -181,7 +185,7 @@ int inscription(int *userid) {
     
     // réussite
     *userid = rep->id;
-    printf("Prennez en note votre identifiant : %d\n", userid);
+    printf("Prennez en note votre identifiant : %d\n", *userid);
     close(sock);
     return 0;
 
@@ -217,7 +221,7 @@ int connexion(int *userid) {
     
     // réussite de la connexion
     *userid = atoi(str_input);
-    printf("Identifiant %d enregistré.\n", userid);
+    printf("Identifiant %d enregistré.\n", *userid);
     return 0;
 }
 
