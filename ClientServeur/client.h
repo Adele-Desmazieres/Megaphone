@@ -6,4 +6,4 @@ int connexion_4();
 int connexion_6();
 
 //Effectue la boucle de communication entre le client et le serveur.
-int communication(int sockserv);
+//int communication(int sockserv);

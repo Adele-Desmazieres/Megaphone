@@ -15,9 +15,7 @@
 #define MSG_LIMIT 255
 
 
-
-
-int main() {
+int main(int argc, char **argv) {
     printf("Initialisation du programme client.\n");    
     int *userid = malloc(sizeof(int));    
     int ret = 1;
@@ -100,7 +98,7 @@ int interpreteur_utilisateur(int *userid) {
                     break;
                     
                 case 2: // poster un billet
-                    poster_billet(userid);
+                    poster_billet_client(userid);
                     break;
                     
                 case 3: // demander la liste des n derniers billets
@@ -228,7 +226,7 @@ int connexion(int *userid) {
 /*
     Crée un billet et l'envoie au serveur
 */
-int poster_billet(int *userid) {
+int poster_billet_client(int *userid) {
     char str_input[MSG_LIMIT];
     printf("Entrez votre message > ");
     fgets(str_input, MSG_LIMIT, stdin);

@@ -1,6 +1,7 @@
-
-
 #include <stdint.h>
+
+#ifndef MSG_SERVEUR
+#define MSG_SERVEUR
 
 typedef struct msg_serveur {
     int codereq, id, numfil, nb;
@@ -20,3 +21,5 @@ msg_serveur * tcp_to_msgserveur(uint16_t * msg);
 
 uint16_t * msg_billet_to_send(msg_billet_envoi struc);
 msg_billet_envoi * tcp_to_msgbillet(uint16_t * msg);
+
+#endif

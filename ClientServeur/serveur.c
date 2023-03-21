@@ -30,9 +30,11 @@ base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int * sockli
     return ret;
 }
 
+/*
 int main(int argc, char **argv) {
     return creation_serveur();
 }
+*/
 
 /*
     Créé le serveur, renvoie 1 si raté et sinon appelle les autres fonctions de communication.

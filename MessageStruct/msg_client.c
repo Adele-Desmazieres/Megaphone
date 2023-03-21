@@ -87,7 +87,7 @@ u_int16_t * msg_client_to_send(msg_client struc){
 }
 
 //Elimine les # en fin de chaine, alloue la valeur de retour
-char * get_real_name(const char * placeholder){
+char * get_real_name_client(const char * placeholder){
     int i = 0;
     for(; *placeholder != '\0' && *placeholder != '#'; placeholder++, i++){}
     char * ret = malloc(sizeof(char) * (i+1));
@@ -119,7 +119,7 @@ msg_client * tcp_to_msgclient(u_int16_t * msg) {
         pseudo[10] = '\0';
 
         //On élimine les #
-        char * realpseudo = get_real_name(pseudo);
+        char * realpseudo = get_real_name_client(pseudo);
         free(pseudo);
 
         return msg_client_constr(codereq, id, 0, 0 , 0 , realpseudo, 1);

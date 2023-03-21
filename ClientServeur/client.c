@@ -30,7 +30,7 @@ int connexion_4() {
     if (r == -1) goto error;
     else {
         printf("Connexion établie !\n");
-        return communication(sock);
+        return sock;
     }
 
     error:
@@ -57,7 +57,7 @@ int connexion_6() {
     if (r == -1) goto error;
     else {
         printf("Connexion établie !\n");
-        return communication(sock);
+        return sock;
     }
 
     error:
@@ -69,6 +69,7 @@ int connexion_6() {
 /*
     Effectue la boucle de communication entre le client et le serveur.
 */
+/*
 int communication(int sock) {
     char buf[SIZE_MSG];
     memset(buf, 0, SIZE_MSG);
@@ -78,3 +79,4 @@ int communication(int sock) {
     close(sock);
     return 0;
 }
+*/

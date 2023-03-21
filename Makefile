@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -pedantic -g -lreadline
+CFLAGS = -Wall -pedantic -g -lreadline -pthread
 HEAD = ClientServeur/client.h ClientServeur/serveur.h ClientServeur/bdd_serveur.h ClientServeur/interpreteur.h MessageStruct/msg_client.h MessageStruct/msg_serveur.h
 OBJ_EXEC = ClientServeur/client.o ClientServeur/serveur.o ClientServeur/bdd_serveur.o ClientServeur/interpreteur.o MessageStruct/msg_client.o MessageStruct/msg_serveur.o
 EXEC = interpreteur
