@@ -1,3 +1,6 @@
+#ifndef SERVEUR
+#define SERVEUR
+
 #include "../MessageStruct/msg_client.h"
 #include "../MessageStruct/msg_serveur.h"
 #include "bdd_serveur.h"
@@ -22,3 +25,5 @@ void liste_n_billets();
 void abonner_fil();
 void ajouter_fichier();
 void telecharger_fichier();
+
+#endif

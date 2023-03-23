@@ -42,6 +42,8 @@ msg_client* tcp_to_msg_clientreq(int sockfd){
 
     int recu = recv(sockfd, oct, 2, 0);
 
+    printf("Recu : %d\n", recu);
+
     if(recu <= 0) {
         return NULL;
     }
@@ -129,6 +131,7 @@ int lire_data_depuistcp(int sockfd, msg_client * msg, int datalen){
 msg_client * tcp_to_msgclient(int sockfd) {
 
     msg_client * ret = tcp_to_msg_clientreq(sockfd);
+
     if(ret == NULL) return NULL;
 
     if (ret->is_inscript){

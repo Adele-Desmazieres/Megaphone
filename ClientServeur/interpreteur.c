@@ -6,8 +6,8 @@
 #include <sys/socket.h>
 #include <ctype.h>
 
-#include "client.h"
 #include "interpreteur.h"
+#include "client.h"
 #include "../MessageStruct/msg_client.h"
 #include "../MessageStruct/msg_serveur.h"
 
@@ -42,6 +42,7 @@ int inscription_ou_connexion(int *userid) {
     
     while (!isdigit(str_input[0]) || atoi(str_input) > 3 || atoi(str_input) < 0) {
         printf("Veuillez entrer le nombre 1, 2 ou 3.\n");
+        fgets(str_input, MSG_LIMIT, stdin);
     }
     
     int nbr_input = atoi(str_input);
@@ -50,6 +51,7 @@ int inscription_ou_connexion(int *userid) {
             
         case 1: // inscription
             ret = inscription(userid);
+            
             break;
             
         case 2: // connexion
@@ -166,6 +168,7 @@ int inscription(int *userid) {
     msg_client *mstruct = msg_client_constr(1, 0, -1, -1, n, str_input, 1);
     u_int16_t *marray = msg_client_to_send(*mstruct);
     int sock = connexion_6();
+    if (sock == -1) return EXIT_FAILURE;
     int size_exchanged = send(sock, marray, 6, 0); // TODO est-ce bien ca qu'il faut envoyer ? taille 6 ?
     if (size_exchanged != 6) goto error;
     
@@ -188,7 +191,7 @@ int inscription(int *userid) {
     return 0;
 
     error:
-    perror("Erreur connexion au serveur.\n"); 
+    printf("Erreur communication avec le serveur.\n");
     close(sock);
     return EXIT_FAILURE;
 }

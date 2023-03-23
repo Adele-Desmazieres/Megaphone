@@ -1,3 +1,5 @@
+#ifndef BDD_SERVEUR
+#define BDD_SERVEUR
 
 //STRUCTURE BILLET
 typedef struct billet billet;
@@ -67,3 +69,5 @@ int add_user(user_list * l, char * name);
 int get_id(user_list * l, char * name);
 char * get_name(user_list * l, int id);
 void free_userlist(user_list * l);
+
+#endif

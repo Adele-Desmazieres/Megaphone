@@ -1,7 +1,7 @@
-#include <stdint.h>
-
 #ifndef MSG_SERVEUR
 #define MSG_SERVEUR
+
+#include <stdint.h>
 
 typedef struct msg_serveur {
     int codereq, id, numfil, nb;

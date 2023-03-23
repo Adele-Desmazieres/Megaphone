@@ -16,10 +16,10 @@
 typedef struct base_serveur {
     user_list * liste_utilisateurs;
     liste_fils * liste_fils;
-    int * socketclient;
+    int socketclient;
 } base_serveur;
 
-base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int * sockli){
+base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int sockli){
     base_serveur * ret = malloc(sizeof(base_serveur));
     if (ret == NULL) perror("Erreur malloc objets thread structure\n");
 
@@ -30,11 +30,11 @@ base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int * sockli
     return ret;
 }
 
-/*
+
 int main(int argc, char **argv) {
     return creation_serveur();
 }
-*/
+
 
 /*
     Créé le serveur, renvoie 1 si raté et sinon appelle les autres fonctions de communication.
@@ -89,10 +89,8 @@ int accepter_clients(int sock) {
             close(sock);
             continue;
         }
-        int * sockcli_malloc = malloc(sizeof(int));
-        *sockcli_malloc = sockli;
 
-        base_serveur * base_serv = base_serveur_constr(liste_users, liste_fil, sockcli_malloc);
+        base_serveur * base_serv = base_serveur_constr(liste_users, liste_fil, sockli);
 
         //Création du thread et lancement de sa routine
         pthread_t thread;
@@ -102,7 +100,6 @@ int accepter_clients(int sock) {
         }
 
         //ca peut ptet poser des problemes ici, faudrait attendre que le thread soit termine pour les free
-        free(sockcli_malloc);
         free(base_serv);
 
     }
@@ -119,13 +116,13 @@ int accepter_clients(int sock) {
 void * communication_client(void * arg_base_serveur) {
 
     base_serveur * base_serv = ((base_serveur *) arg_base_serveur);
-    int sockcli = *(base_serv->socketclient); 
+    int sockcli = (base_serv->socketclient); 
 
     //tcp_to_msgclient effectue les recv qui correspondent au premier message reçu
     msg_client * msg_recu_traduit = tcp_to_msgclient(sockcli);
     if (msg_recu_traduit == NULL){
         close(sockcli);
-        perror("Problème reception message @ communication_client @ serveur.c\n");
+        perror("Problème reception message @ communication_client @ serveur.c");
         exit(EXIT_FAILURE);
     }
 

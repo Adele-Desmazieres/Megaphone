@@ -34,9 +34,9 @@ int connexion_4() {
     }
 
     error:
-    perror("Erreur connexion au serveur.\n"); 
+    perror("Erreur connexion au serveur "); 
     close(sock);
-    return EXIT_FAILURE;
+    return -1;
 }
 
 /*
@@ -61,22 +61,7 @@ int connexion_6() {
     }
 
     error:
-    perror("Erreur connexion au serveur.\n"); 
+    perror("Erreur connexion au serveur "); 
     close(sock);
-    return EXIT_FAILURE;
+    return -1;
 }
-
-/*
-    Effectue la boucle de communication entre le client et le serveur.
-*/
-/*
-int communication(int sock) {
-    char buf[SIZE_MSG];
-    memset(buf, 0, SIZE_MSG);
-    sprintf(buf, "Test message client");
-    int ecrit = send(sock, buf, strlen(buf), 0);
-
-    close(sock);
-    return 0;
-}
-*/
