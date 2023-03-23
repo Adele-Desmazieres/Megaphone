@@ -20,6 +20,6 @@ uint16_t * msg_serveur_to_send(msg_serveur struc);
 msg_serveur * tcp_to_msgserveur(uint16_t * msg);
 
 uint16_t * msg_billet_to_send(msg_billet_envoi struc);
-msg_billet_envoi * tcp_to_msgbillet(uint16_t * msg);
+msg_billet_envoi * tcp_to_msgbillet(int sockfd);
 
 #endif

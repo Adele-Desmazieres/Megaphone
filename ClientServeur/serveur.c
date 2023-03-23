@@ -120,17 +120,15 @@ void * communication_client(void * arg_base_serveur) {
 
     base_serveur * base_serv = ((base_serveur *) arg_base_serveur);
     int sockcli = *(base_serv->socketclient); 
-    char BUF[512];
-    memset(BUF, '\0', 512);
 
-    int recu = recv(sockcli, BUF, 512, 0);
-
-    if(recu <= 0) {
+    //tcp_to_msgclient effectue les recv qui correspondent au premier message reçu
+    msg_client * msg_recu_traduit = tcp_to_msgclient(sockcli);
+    if (msg_recu_traduit == NULL){
         close(sockcli);
-        return NULL;
+        perror("Problème reception message @ communication_client @ serveur.c\n");
+        exit(EXIT_FAILURE);
     }
 
-    msg_client * msg_recu_traduit = tcp_to_msgclient((uint16_t *)BUF);
     int retour = 0;
 
     switch(msg_recu_traduit -> codereq){
@@ -236,7 +234,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
     //SI UN SEUL FIL
     if(numfil != 0){
 
-        nb = (msg_client->nb > get_fil_id (liste_fils, numfil) || msg_client->nb == 0) ? ( get_fil_id(liste_fils , numfil) -> nb_de_msg ) : msg_client->nb ;
+        nb = (msg_client->nb > get_fil_id (liste_fils, numfil)->nb_de_msg || msg_client->nb == 0) ? ( get_fil_id(liste_fils , numfil) -> nb_de_msg ) : msg_client->nb ;
 
         //On envoie le premier message annoncant le nombre de messages qui vont suivre
         msg_serveur prem_reponse = {msg_client->codereq, msg_client->id, numfil, nb};

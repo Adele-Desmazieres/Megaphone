@@ -34,6 +34,119 @@ msg_client* msg_client_constr(int codereq, int id, int numfil, int nb, int datal
     return ret;
 }
 
+//Lit les 2 premiers octets d'un message TCP (codereq et ID), crée une structure en conséquence
+msg_client* tcp_to_msg_clientreq(int sockfd){
+
+    uint16_t oct[1];
+    memset(oct, 0, 2);
+
+    int recu = recv(sockfd, oct, 2, 0);
+
+    if(recu <= 0) {
+        return NULL;
+    }
+
+    int id = (oct[0] >> 5);
+    int codereq = oct[0] - ((oct[0]) << 5);
+
+    return msg_client_constr(codereq,id,0,0,0,NULL, (codereq == 1));
+
+}
+
+//Lit le pseudo depuis sockfd, stocke dans la structure msg, renvoie -1 en cas d'erreur ou 0 en succes
+int lire_pseudo_depuistcp(int sockfd, msg_client * msg){
+
+    char * pseudo = malloc(11 * sizeof(char));
+    memset(pseudo, 0, 11);
+
+    //On recoit les 10 prochains octets pour le pseudo
+    int recu = recv(sockfd, pseudo, 10, 0);
+
+    if(recu <= 0) {
+        return -1;
+    }
+
+    pseudo[10] = '\0';
+    
+    msg->data = pseudo;
+
+    return 0;    
+}
+
+//Lit depuis la socket jusqu'à datalen, stocke les informations du header dans msg
+int lire_header_until_datalen(int sockfd, msg_client * msg){
+
+    u_int16_t oct[3];
+    memset(oct, 0, 6);
+
+    //On recoit les 5 prochains octets 2 pour numfil, 2 pour nb et 1 pour datalen
+    int recu = recv(sockfd, oct, 5, 0);
+
+    if(recu <= 0) {
+        close(sockfd);
+        return -1;
+    }
+
+    //NUMFIL ET NB
+    int numfil = ntohs(oct[0]);
+    int nb = ntohs(oct[1]);
+
+    //DATA
+    u_int16_t datalenData = ntohs(oct[3]);
+    int car1 = (datalenData >> 8);
+    int datalen = (datalenData - ((int)car1 << 8));
+
+    msg->numfil = numfil;
+    msg->nb = nb;
+    msg->datalen = datalen;
+
+    return 0;
+
+}
+
+//Lit DATA restant depuis une socket, à utiliser seulement si on a déjà lu tout le reste et qu'il ne reste que DATA!
+int lire_data_depuistcp(int sockfd, msg_client * msg, int datalen){
+
+    char * buf = malloc(sizeof(char) * (datalen+1) );
+    memset(buf, 0, datalen+1);
+
+    int recu = recv(sockfd, buf, datalen, 0);
+
+    if(recu <= 0) {
+        close(sockfd);
+        return -1;
+    }
+
+    buf[datalen] = '\0';
+
+    msg->data = buf;
+
+    return 0;
+    
+}
+
+//Lit directement depuis sockfd, et stocke les informations dans une structure qu'il renvoie
+msg_client * tcp_to_msgclient(int sockfd) {
+
+    msg_client * ret = tcp_to_msg_clientreq(sockfd);
+    if(ret == NULL) return NULL;
+
+    if (ret->is_inscript){
+
+        if(lire_pseudo_depuistcp(sockfd, ret) < 0) return NULL;
+        else return ret;
+
+    }
+    
+    if(lire_header_until_datalen(sockfd, ret) < 0) return NULL;
+
+    if(lire_data_depuistcp(sockfd, ret, ret->datalen) < 0) return NULL;
+
+    return ret;
+}
+
+
+
 //Transforme un struct msg_client en un "message" pour TCP
 u_int16_t * msg_client_to_send(msg_client struc){
 
@@ -96,73 +209,3 @@ char * get_real_name_client(const char * placeholder){
     return ret;
 }
 
-msg_client * tcp_to_msgclient(u_int16_t * msg) {
-
-    //ENTETE
-    //CODEREQ | ID
-    u_int16_t entete = ntohs(msg[0]);
-    int id = (entete >> 5);
-    int codereq = entete - (id << 5);
-
-    if( codereq == 1 ) {
-
-        char * pseudo = malloc(11 * sizeof(char));
-        int pseudo_pointer = 0;
-        for(int i = 1; pseudo_pointer < 11; pseudo_pointer += 2, i++){
-            u_int16_t cars = ntohs(msg[i]);
-            char car1 = (char)(cars >> 8);
-            char car2 = (char)(cars - (car1 << 8));
-
-            pseudo[pseudo_pointer] = car2;
-            pseudo[pseudo_pointer+1] = car1;
-        }
-        pseudo[10] = '\0';
-
-        //On élimine les #
-        char * realpseudo = get_real_name_client(pseudo);
-        free(pseudo);
-
-        return msg_client_constr(codereq, id, 0, 0 , 0 , realpseudo, 1);
-    }
-
-    //NUMFIL ET NB
-    int numfil = ntohs(msg[1]);
-    int nb = ntohs(msg[2]);
-
-    //DATA
-    u_int16_t datalenData = ntohs(msg[3]);
-    char car1 = (char)(datalenData >> 8);
-    int datalen = (datalenData - ((int)car1 << 8));
-
-    //Si datalen = 0, erreur...
-    if(datalen <= 0) { perror("Null data, exiting\n"); exit(1); }
-
-    //On alloue une chaine de taille datalen+1
-    char * finalData = malloc((datalen+1) * sizeof(char) );
-    //On ajoute le premier caractère
-    finalData[0] = car1;
-    //printf("%c \n", finalData[0]);
-    int data_pointer = 1;
-
-        for(int i = 4; data_pointer < datalen ; data_pointer += 2, i++){
-
-            u_int16_t cars = ntohs(msg[i]);
-            //printf("%d \n", msg[i]);
-            
-            //On prends les deux caractères représentés par l'octet...
-            u_int16_t car1_int = (cars >> 8); 
-            char car1 = (char)car1_int;
-            char car2 = (data_pointer+1 < datalen) ? (char)(cars - (car1_int << 8)) : '\0';
-
-            //printf("%c %c\n", car1, car2);
-
-            //... or si i ou i+1 dépasse datalen, c'est qu'on a fini
-            finalData[data_pointer] = car2;
-            if(car2 == '\0') break;
-            finalData[data_pointer+1] = car1;
-            if(car1 == '\0') break;
-
-        }
-
-    return msg_client_constr(codereq, id, numfil, nb, datalen, finalData, 0);
-}

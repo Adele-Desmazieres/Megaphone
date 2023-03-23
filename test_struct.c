@@ -23,13 +23,6 @@ int main(int argc, char *argv[]) {
     message_client.datalen = 5;
     message_client.data = "abcde";
 
-    uint16_t * msgclient_to_tcp = msg_client_to_send(message_client);
-    msg_client * message_client_from_tcp = tcp_to_msgclient(msgclient_to_tcp);
-
-    printf("codereq = %d \n",message_client_from_tcp->codereq);
-    printf("ID = %d \n",message_client_from_tcp->id);
-    printf("data = %s \n",message_client_from_tcp->data);
-    printf("numfil = %d\n", message_client_from_tcp->numfil);
 
     return 0;
 }

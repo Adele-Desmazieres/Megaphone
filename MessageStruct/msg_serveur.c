@@ -101,99 +101,80 @@ uint16_t * msg_billet_to_send(msg_billet_envoi struc){
     return ret;
 }
 
-//Elimine les # en fin de chaine, alloue la valeur de retour
-char * get_real_name(const char * placeholder){
-    int i = 0;
-    for(; *placeholder != '\0' && *placeholder != '#'; placeholder++, i++){}
-    char * ret = malloc(sizeof(char) * (i+1));
-    strncat(ret, placeholder-i, i);
-
-    return ret;
-}
-
-msg_billet_envoi * tcp_to_msgbillet(uint16_t * msg){
+msg_billet_envoi * tcp_to_msgbillet(int sockfd){
 
     msg_billet_envoi * ret = malloc(sizeof(msg_billet_envoi));
+    if(ret == NULL) return NULL;
+
+    u_int16_t oct[1];
+    memset(oct, 0, 2);
+
+    //On recoit les 2 prochains octets pour Numfil
+    int recu = recv(sockfd, oct, 2, 0);
+
+    if(recu <= 0) {
+        return NULL;
+    }
 
     //NUMFIL
-    ret->numfil = ntohs(msg[0]);
+    ret->numfil = ntohs(oct[0]);
 
     //ORIGINE
-    char * origine = malloc(11 * sizeof(char));
-        int origine_pointer = 0;
-        for(int i = 1; origine_pointer < 11; origine_pointer += 2, i++){
-            uint16_t cars = ntohs(msg[i]);
-            char car1 = (char)(cars >> 8);
-            char car2 = (char)(cars - (car1 << 8));
+    char * origine = malloc(11);
+    memset(origine, 0, 11);
 
-            origine[origine_pointer] = car2;
-            origine[origine_pointer+1] = car1;
-        }
-        origine[10] = '\0';
+    //On recoit les 10 prochains octets pour origine
+    recu = recv(sockfd, origine, 10, 0);
 
-        //On élimine les #
-        char * realorigine = get_real_name(origine);
-        free(origine);
+    if(recu <= 0) {
+        return NULL;
+    }
 
-    ret->origine = realorigine;
+    ret->origine = origine;
 
     //PSEUDO
-    char * pseudo = malloc(11 * sizeof(char));
-        int pseudo_pointer = 0;
-        for(int i = 6; pseudo_pointer < 11; pseudo_pointer += 2, i++){
-            uint16_t cars = ntohs(msg[i]);
-            char car1 = (char)(cars >> 8);
-            char car2 = (char)(cars - (car1 << 8));
+    char * pseudo = malloc(11);
+    memset(pseudo, 0, 11);
 
-            pseudo[pseudo_pointer] = car2;
-            pseudo[pseudo_pointer+1] = car1;
-        }
-        pseudo[10] = '\0';
+    //On recoit les 10 prochains octets pour pseudo
+    recu = recv(sockfd, pseudo, 10, 0);
 
-    //On élimine les #
-        char * realpseudo = get_real_name(pseudo);
-        free(origine);
+    if(recu <= 0) {
+        return NULL;
+    }
+
+    ret->pseudo = pseudo;
+
+    //DATALEN
     
-    ret->pseudo = realpseudo;
+    u_int8_t dtlen[1];
+    memset(dtlen, 0, 1);
 
-    //DATALEN ET DATA
-    uint16_t datalenData = ntohs(msg[11]);
-    char car1 = (char)(datalenData >> 8);
-    int datalen = (datalenData - ((int)car1 << 8));
+    //On recoit les 10 prochains octets pour pseudo
+    recu = recv(sockfd, dtlen, 1, 0);
 
-    //Si datalen = 0, erreur...
-    if(datalen <= 0) { perror("Null data, exiting\n"); exit(1); }
+    if(recu <= 0) {
+        return NULL;
+    }
 
-    //On alloue une chaine de taille datalen+1
-    char * finalData = malloc((datalen+1) * sizeof(char) );
-    //On ajoute le premier caractère
-    finalData[0] = car1;
-    //printf("%c \n", finalData[0]);
-    int data_pointer = 1;
-
-        for(int i = 12; data_pointer < datalen ; data_pointer += 2, i++){
-
-            uint16_t cars = ntohs(msg[i]);
-            
-            //On prends les deux caractères représentés par l'octet...
-            uint16_t car1_int = (cars >> 8); 
-            char car1 = (char)car1_int;
-            char car2 = (data_pointer+1 < datalen) ? (char)(cars - (car1_int << 8)) : '\0';
-
-            //printf("%c %c\n", car1, car2);
-
-            //... or si i ou i+1 dépasse datalen, c'est qu'on a fini
-            finalData[data_pointer] = car2;
-            if(car2 == '\0') break;
-            finalData[data_pointer+1] = car1;
-            if(car1 == '\0') break;
-
-        }
-    
+    int datalen = (int)dtlen[0];
     ret->datalen = datalen;
 
-    //A FREE
-    ret->data = finalData;
+    //DATA
+    char * buf = malloc(datalen + 1);
+    if (buf == NULL) return NULL;
+    memset(buf, 0, datalen+1);
+
+    //On recoit les prochains octets restants pour data
+    recu = recv(sockfd, buf, datalen, 0);
+
+    if(recu <= 0) {
+        return NULL;
+    }
+
+    buf[datalen] = '\0';
+
+    ret->data = buf;
 
     return ret;
 }
