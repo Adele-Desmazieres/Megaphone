@@ -42,14 +42,14 @@ msg_client* tcp_to_msg_clientreq(int sockfd){
 
     int recu = recv(sockfd, oct, 2, 0);
 
-    printf("Recu : %d\n", recu);
-
     if(recu <= 0) {
         return NULL;
     }
 
+    oct[0] = ntohs(oct[0]);
     int id = (oct[0] >> 5);
-    int codereq = oct[0] - ((oct[0]) << 5);
+    int codereq = oct[0] - ((id) << 5);
+    //printf("TEST2 %d %d\n", id, codereq);
 
     return msg_client_constr(codereq,id,0,0,0,NULL, (codereq == 1));
 
@@ -69,7 +69,8 @@ int lire_pseudo_depuistcp(int sockfd, msg_client * msg){
     }
 
     pseudo[10] = '\0';
-    
+    //printf("pseudo1 : %s\n", pseudo);
+
     msg->data = pseudo;
 
     return 0;    
@@ -132,7 +133,9 @@ msg_client * tcp_to_msgclient(int sockfd) {
 
     msg_client * ret = tcp_to_msg_clientreq(sockfd);
 
+
     if(ret == NULL) return NULL;
+
 
     if (ret->is_inscript){
 
@@ -171,7 +174,7 @@ u_int16_t * msg_client_to_send(msg_client struc){
 
             //printf("%c %c \n", car1, car2);
 
-            msg[(i/2) + 1] = htons(((int)car2  << 8) + (int)car1);
+            msg[(i/2) + 1] = (u_int16_t)(((int)car2  << 8) + (int)car1);
         }
 
         return msg;

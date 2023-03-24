@@ -100,7 +100,7 @@ int accepter_clients(int sock) {
         }
 
         //ca peut ptet poser des problemes ici, faudrait attendre que le thread soit termine pour les free
-        free(base_serv);
+        //free(base_serv);
 
     }
 
@@ -126,11 +126,14 @@ void * communication_client(void * arg_base_serveur) {
         exit(EXIT_FAILURE);
     }
 
+    //printf("Pseudo : %s\n", msg_recu_traduit->data);
+
     int retour = 0;
 
     switch(msg_recu_traduit -> codereq){
         //L'utilisateur veut s'inscrire.
-        case 0 :
+        case 1 :
+
             retour = inscription_utili(msg_recu_traduit, base_serv -> liste_utilisateurs);
             if (retour == -1) envoi_erreur_client(sockcli);
             else {
@@ -162,6 +165,7 @@ void * communication_client(void * arg_base_serveur) {
     } 
 
     close(sockcli);
+    free(arg_base_serveur);
     return NULL;    
 }
 
@@ -191,6 +195,7 @@ void envoie_reponse_client(int sockcli, msg_serveur reponse_serveur) {
 //Fonction qui permet à l'utilisateur de s'inscrire. Renvoie l'identifiant de l'utilisateur
 //en cas de succès.
 int inscription_utili(msg_client * msg_client, user_list * liste_utili) {
+
     int r = add_user(liste_utili, msg_client -> data);
     if (r == 0) return -1;
     return get_id(liste_utili, msg_client -> data);

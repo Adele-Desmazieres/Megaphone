@@ -236,9 +236,13 @@ user_list * user_list_constr(){
 
 int is_in_userlist(user_list * l ,char * name){
 
-    for(user_listnode * tmp = l->first; tmp != NULL; tmp = tmp->suiv){
+
+    user_listnode * tmp = l->first;
+
+    while(tmp != NULL){
 
         if(strcmp(tmp->pseudo, name) == 0) return 1;
+        tmp = tmp->suiv;
 
     }
 
@@ -251,6 +255,7 @@ int is_in_userlist(user_list * l ,char * name){
 int add_user(user_list * l, char * name){
 
     if(is_in_userlist(l, name)) return 0;
+
 
     user_listnode * newuser = user_listnode_constr(name, l->len);
 

@@ -163,19 +163,24 @@ int inscription(int *userid) {
             return 1;
         }
     }
+    //On enlève le \n a la fin de la chaîne récupérée...
+    str_input[strlen(str_input) - 1] = '\0';
     
     // envoie le message contenant le pseudo en suivant le protocole
     msg_client *mstruct = msg_client_constr(1, 0, -1, -1, n, str_input, 1);
+    
+    //printf("PseudoClient : %s\n", mstruct->data);
     u_int16_t *marray = msg_client_to_send(*mstruct);
+
     int sock = connexion_6();
     if (sock == -1) return EXIT_FAILURE;
-    int size_exchanged = send(sock, marray, 6, 0); // TODO est-ce bien ca qu'il faut envoyer ? taille 6 ?
-    if (size_exchanged != 6) goto error;
+    int size_exchanged = send(sock, marray, 12, 0); // TODO est-ce bien ca qu'il faut envoyer ? taille 6 ?
+    if (size_exchanged != 12) goto error;
     
     // recoit l'identifiant en réponse
     u_int16_t buff[3];
-    size_exchanged = recv(sock, buff, 3, 0);
-    if (size_exchanged != 3) goto error;
+    size_exchanged = recv(sock, buff, 6, 0);
+    if (size_exchanged != 6) goto error;
     
     // interprète la réponse
     msg_serveur *rep = tcp_to_msgserveur(buff);
