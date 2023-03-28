@@ -49,7 +49,7 @@ int connexion_6() {
     memset(&adrclient, 0, sizeof(adrclient));
 
     adrclient.sin6_family = AF_INET6;
-    adrclient.sin6_port = htons(2121);
+    adrclient.sin6_port = htons(2121); // 7777 et "::1" pour se connecter au serv prof sur lulu
     inet_pton(AF_INET6, "fe80:::43ff:fe49:79bf", &adrclient.sin6_addr);
 
     //On se connecte au serveur.
