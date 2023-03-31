@@ -73,7 +73,7 @@ uint16_t * msg_billet_to_send(msg_billet_envoi struc){
             char car1 = ( i < strlen(struc.origine)) ? struc.origine[i] : '#';
             char car2 = ( i+1 < strlen(struc.origine)) ? struc.origine[i+1] : '#';
 
-            ret[(i/2) + 1] = htons(((int)car2  << 8) + (int)car1);
+            ret[(i/2) + 1] = (u_int16_t)(((int)car2  << 8) + (int)car1);
     }
 
     //PSEUDO
@@ -82,7 +82,7 @@ uint16_t * msg_billet_to_send(msg_billet_envoi struc){
             char car1 = ( i < strlen(struc.pseudo)) ? struc.pseudo[i] : '#';
             char car2 = ( i+1 < strlen(struc.pseudo)) ? struc.pseudo[i+1] : '#';
 
-            ret[(i/2) + 6] = htons(((int)car2  << 8) + (int)car1);
+            ret[(i/2) + 6] = (u_int16_t)(((int)car2  << 8) + (int)car1);
     }
 
     //DATA
@@ -95,7 +95,7 @@ uint16_t * msg_billet_to_send(msg_billet_envoi struc){
             char car1 = ( data_pointer < strlen(struc.data)) ? struc.data[data_pointer] : '#';
             char car2 = ( data_pointer+1 < strlen(struc.data)) ? struc.data[data_pointer+1] : '#';
 
-            ret[i] = htons(((int)car2 << 8) + (int)car1);
+            ret[i] = (u_int16_t)(((int)car2 << 8) + (int)car1);
     }
 
     return ret;
@@ -150,7 +150,7 @@ msg_billet_envoi * tcp_to_msgbillet(int sockfd){
     u_int8_t dtlen[1];
     memset(dtlen, 0, 1);
 
-    //On recoit les 10 prochains octets pour pseudo
+    //On recoit le prochain octet pour datalen
     recu = recv(sockfd, dtlen, 1, 0);
 
     if(recu <= 0) {

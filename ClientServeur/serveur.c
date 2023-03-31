@@ -246,6 +246,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
         if (snd <= 0){
             perror("Erreur envoi réponse\n");
         }
+        free(prem_reponse_a_envoyer);
 
         //On récupère le fil choisi
         fil * fil = get_fil_id(liste_fils, numfil);
