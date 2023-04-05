@@ -68,12 +68,12 @@ int connexion_6() {
 /*
     Connexion UDP utilisant le protocole IPV4.
 */
-int connexion_udp_4(struct sockaddr_in * adrclient) {
+int connexion_udp_4(struct sockaddr_in * adrclient, int port) {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) return -1;
 
     adrclient -> sin_family = AF_INET;
-    adrclient -> sin_port = htons(PORT);
+    adrclient -> sin_port = htons(port);
     inet_pton(AF_INET, ADR_IPV4, &adrclient -> sin_addr);
 
     return sock;
@@ -82,12 +82,12 @@ int connexion_udp_4(struct sockaddr_in * adrclient) {
 /*
     Connexion UDP utilisant le protocole IPV6.
 */
-int connexion_udp_6(struct sockaddr_in6 * adrclient) {
+int connexion_udp_6(struct sockaddr_in6 * adrclient, int port) {
     int sock = socket(AF_INET6, SOCK_DGRAM, 0);
     if (sock < 0) return -1;
 
     adrclient -> sin6_family = AF_INET6;
-    adrclient -> sin6_port = htons(PORT);
+    adrclient -> sin6_port = htons(port);
     inet_pton(AF_INET, ADR_IPV6, &adrclient -> sin6_addr);
 
     return sock;

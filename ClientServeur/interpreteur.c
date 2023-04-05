@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <ctype.h>
 #include <netinet/in.h>
+#include <sys/stat.h>
 
 #include "interpreteur.h"
 #include "client.h"
@@ -19,10 +20,7 @@
 
 int main(int argc, char **argv)
 {
-    int *userid = malloc(sizeof(int));
-    *userid = 3; // userid négatif = pas set
-    return poster_fichier_client(userid);
-    /* printf("Initialisation du programme client.\n");
+    printf("Initialisation du programme client.\n");
     int *userid = malloc(sizeof(int));
     *userid = -1; // userid négatif = pas set
     int ret = 1;
@@ -39,7 +37,7 @@ int main(int argc, char **argv)
 
     ret = interpreteur_utilisateur(userid);
 
-    printf("Fin de session utilisateur.\n"); */
+    printf("Fin de session utilisateur.\n");
     return 0;
 }
 
@@ -403,35 +401,99 @@ int poster_billet_client(int *userid)
     close(sock);
     return 0;
 
-error:
+    error:
     printf("Erreur communication avec le serveur.\n");
     close(sock);
     return EXIT_FAILURE;
 }
 
 int poster_fichier_client(int *userid) {
-    struct sockaddr_in adrclient;
+    char *file_path;
+    char *num_input;
+
+    while (!string_is_number(num_input)) {
+        printf("Entrez le numéro du fil sur lequel vous voulez poster votre fichier > ");
+        num_input = getln();
+        int n = strlen(num_input);
+        if (n <= 0) return 1;
+    }
+
+    printf("Entrez le nom du fichier > ");
+    file_path = getln();
+
+    int numfil = atoi(num_input);
+
+    //On vérifie que le fichier existe bien.
+    struct stat * buf = malloc(sizeof(struct stat));
+    if (stat(file_path, buf) != 0) {
+        printf("Le fichier que vous avez entré n'est pas trouvable.\n");
+        free(buf);
+        return EXIT_FAILURE;
+    }
+
+    free(buf);
+
+    // On créé le message avec lendata le nombre de caractère du fichier et data le nom du fichier.
+    msg_client *mstruct = msg_client_constr(5, *userid, numfil, 0, strlen(file_path), file_path, 0);
+    u_int16_t *marray = msg_client_to_send(*mstruct);
+
+    // l'envoie
+    int sock = connexion_6();
+    if (sock == -1)
+        return EXIT_FAILURE;
+    int size_exchanged = send(sock, marray, 12, 0);
+    if (size_exchanged != 12)
+        goto error;
+
+    // recoit la réponse
+    u_int16_t buff[3];
+    size_exchanged = recv(sock, buff, 6, 0);
+    if (size_exchanged != 6)
+        goto error;
+
+    // interprète la réponse
+    msg_serveur *rep = tcp_to_msgserveur(buff);
+    if (rep->codereq != 5)
+    { // échec du côté serveur
+        printf("Echec du traitement côté serveur.\n");
+        return EXIT_FAILURE;
+    }
+
+    // réussite
+    printf("Numero de port serveur reçu : %d.\n", rep -> nb);
+    close(sock);
+
+    int r = envoyer_donnees_fichier(userid, file_path, rep -> nb);
+    if (r < 0) { 
+        printf("Erreur envoi du fichier.\n");
+        return EXIT_FAILURE;
+    }
+    else {
+        printf("Fichier bien envoyé.\n");
+    }
+
+    return 0;
+
+    error:
+    printf("Erreur communication avec le serveur.\n");
+    close(sock);
+    return EXIT_FAILURE;
+}
+
+int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
+    struct sockaddr_in6 adrclient;
     memset(&adrclient, 0, sizeof(adrclient));
     
-    int sock = connexion_udp_4(&adrclient);
+    int sock = connexion_udp_6(&adrclient, port);
     if (sock < 0) { perror("sock "); return 1; }
     socklen_t len = sizeof(adrclient);
 
     char buffer[BUF_SIZE + 1];
 
-    int r = 0;
+    sprintf(buffer, "Message test pour le serveur\n");
+    int r = sendto(sock, buffer, strlen(buffer), 0, (struct sockaddr *)&adrclient, len);
+    if (r < 0){ perror("sendto "); return 1; }
 
-    for (int i = 0; i < 3; i++) {
-        sprintf(buffer, "Message pour le serveur\n");
-        r = sendto(sock, buffer, strlen(buffer), 0, (struct sockaddr *)&adrclient, len);
-        if (r < 0){ perror("sendto "); return 1; }
-
-        memset(buffer, 0, BUF_SIZE + 1);
-        r = recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *)&adrclient, &len);
-        if (r < 0){ perror("recvfrom "); return 1; }
-
-        printf("%s", buffer);
-    }
-
+    close(sock);
     return 0;
 }

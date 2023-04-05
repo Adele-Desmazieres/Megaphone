@@ -13,30 +13,24 @@
 
 #define PORT 2121
 #define SIZE_MSG 512
+//Valeur à part car modifiables à guises
+#define PORT_UDP 2121
+#define SIZE_PQG_UDP 512
 
-typedef struct base_serveur {
-    user_list * liste_utilisateurs;
-    liste_fils * liste_fils;
-    int socketclient;
-} base_serveur;
+int main(int argc, char **argv) {
+    return creation_serveur();
+}
 
-base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int sockli){
+base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int sockli) {
     base_serveur * ret = malloc(sizeof(base_serveur));
     if (ret == NULL) perror("Erreur malloc objets thread structure\n");
 
-    ret->liste_utilisateurs = ul;
+    ret->liste_uti = ul;
     ret->liste_fils = lf;
     ret->socketclient = sockli;
 
     return ret;
 }
-
-
-int main(int argc, char **argv) {
-    return connexion_udp();
-    //return creation_serveur();
-}
-
 
 /*
     Créé le serveur, renvoie 1 si raté et sinon appelle les autres fonctions de communication.
@@ -90,25 +84,12 @@ int connexion_udp() {
     r = bind(sock, (struct sockaddr *) &adrserv, sizeof(adrserv));
     if (r == -1) goto error;
 
-    struct sockaddr_in6 adrclient;
-    socklen_t sizeclient = sizeof(adrclient);
-
-    char buffer[SIZE_MSG + 1];
-
-    while(1) {
-        memset(buffer, 0, SIZE_MSG + 1);
-        r = recvfrom(sock, buffer, SIZE_MSG, 0, (struct sockaddr *) &adrclient, &sizeclient);
-        if (r < 0) {perror("recv "); return 1; }
-
-        sprintf(buffer, "Test envoi serveur.\n");
-        r = sendto(sock, buffer, strlen(buffer), 0, (struct sockaddr *) &adrclient, sizeclient);
-        if (r < 0) {perror("sendto "); return 1; }
-    }
+    return sock;
 
     error:
     close(sock);
     perror("Erreur création du serveur. "); 
-    return EXIT_FAILURE;
+    return -1;
 }
 
 /*
@@ -161,52 +142,69 @@ void * communication_client(void * arg_base_serveur) {
     int sockcli = (base_serv->socketclient); 
 
     //tcp_to_msgclient effectue les recv qui correspondent au premier message reçu
-    msg_client * msg_recu_traduit = tcp_to_msgclient(sockcli);
-    if (msg_recu_traduit == NULL){
+    msg_client * msg_client = tcp_to_msgclient(sockcli);
+    if (msg_client == NULL){
         close(sockcli);
         perror("Problème reception message @ communication_client @ serveur.c");
         exit(EXIT_FAILURE);
     }
 
-    //printf("Pseudo : %s\n", msg_recu_traduit->data);
+    //printf("Pseudo : %s\n", msg_client->data);
 
     int retour = 0;
 
-    switch(msg_recu_traduit -> codereq){
+    switch(msg_client -> codereq){
         //L'utilisateur veut s'inscrire.
         case 1 :
-
-            retour = inscription_utili(msg_recu_traduit, base_serv -> liste_utilisateurs);
+            retour = inscription_utili(msg_client, base_serv -> liste_uti);
             if (retour == -1) envoi_erreur_client(sockcli);
             else {
                 msg_serveur to_send = {1, retour, 0, 0};
                 envoie_reponse_client(sockcli, to_send);
-            } break;
+            } 
+            close(sockcli);
+            break;
         //L'utilisateur veut poster un billet.
         case 2 :
-            retour = poster_billet(msg_recu_traduit, base_serv -> liste_fils, base_serv -> liste_utilisateurs);
+            retour = poster_billet(msg_client, base_serv -> liste_fils, base_serv -> liste_uti, msg_client -> data);
             if (retour == -1) envoi_erreur_client(sockcli);
             else {
-                msg_serveur to_send = {2, msg_recu_traduit -> id, retour, 0};
+                msg_serveur to_send = {2, msg_client -> id, retour, 0};
                 envoie_reponse_client(sockcli, to_send);
-            } break;
+            } 
+            close(sockcli);
+            break;
         //L'utilisateur demande la liste des n derniers billets
         case 3 :
-            liste_n_billets(sockcli, base_serv->liste_fils, msg_recu_traduit); break;
+            liste_n_billets(sockcli, base_serv->liste_fils, msg_client); 
+            close(sockcli);
+            break;
         //l'utilisateur veut s'abonner à un fil.
         case 4 :
-            abonner_fil(); break;
+            abonner_fil(); 
+            close(sockcli);
+            break;
         //L'utilisateur veut envoyer un fichier.
         case 5 :
-            ajouter_fichier(); break;
+            retour = udp_envoi_port_client(msg_client, base_serv -> liste_fils, base_serv -> liste_uti); 
+            if (retour == -1) {
+                envoi_erreur_client(sockcli);
+                close(sockcli);
+            }
+            else {
+                msg_serveur to_send = {msg_client -> codereq, msg_client -> id, msg_client -> numfil, retour};
+                envoie_reponse_client(sockcli, to_send);
+                close(sockcli);
+                retour = recevoir_donnees_fichier(msg_client, base_serv -> liste_fils, base_serv -> liste_uti);
+            }
+            break;
         //L'utilisateur veut telecharger un fichier.
         case 6 :
             telecharger_fichier(); break;
         default :
             envoi_erreur_client(sockcli); break;
-    } 
+    }
 
-    close(sockcli);
     free(arg_base_serveur);
     return NULL;    
 }
@@ -245,13 +243,13 @@ int inscription_utili(msg_client * msg_client, user_list * liste_utili) {
 
 //Fonction qui permet de poster un billet dans un fil passé en parametre du message. Renvoie le numéro 
 //du fil ou le billet a été posté en cas de succès.
-int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili) {
+int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * contenu) {
     int num_fil = msg_client -> numfil;
 
     //Si num_fil vaut 0 alors l'utilisateur cherche à poster sur un nouveau fil avec pseudo et texte.
     if (msg_client -> numfil == 0) {
         char * username = get_name(liste_utili, msg_client -> id);
-        fil * nouveau_fil = fil_constr(username, msg_client -> data);
+        fil * nouveau_fil = fil_constr(username, contenu);
         if (nouveau_fil == NULL) { perror("Erreur creation de fil\n."); return 1; }
         num_fil = ajouter_fil(liste_fils, nouveau_fil);
     }
@@ -262,7 +260,7 @@ int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * 
         fil * fil_poster = get_fil_id(liste_fils, msg_client -> numfil);
         //Le fil que l'utilisateur a voulu selectionner n'existe pas.
         if (fil_poster == NULL) return -1;
-        ajouter_billet(fil_poster, username, msg_client -> data);
+        ajouter_billet(fil_poster, username, contenu);
     }
 
     return num_fil;
@@ -376,8 +374,54 @@ void abonner_fil() {
 
 }
 
-void ajouter_fichier() {
 
+int udp_envoi_port_client(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili) {
+    int num_fil = msg_client -> numfil;
+
+    //Si le client veut poster sur un fil on regarde si celui ci est valide avant de renvoyer le numéro
+    //de port
+    if (num_fil != 0) {
+        fil * fil_poster = get_fil_id(liste_fils, msg_client -> numfil);
+        if (fil_poster == NULL) return -1;
+    }
+
+    return PORT_UDP;
+}
+
+int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili) {
+    //On créé notre connexion udp ainsi que  l'adresse client.
+    int sock = connexion_udp();
+    if (sock < 0) return 1;
+
+    struct sockaddr_in6 adrclient;
+    socklen_t sizeclient = sizeof(adrclient);
+
+    char buffer[SIZE_PQG_UDP];
+
+    memset(buffer, 0, SIZE_PQG_UDP);
+    int r = recvfrom(sock, buffer, SIZE_PQG_UDP, 0, (struct sockaddr *) &adrclient, &sizeclient);
+    if (r < 0) {perror("recv "); return 1; }
+
+    printf("UDP recu : %s\n", buffer);
+
+    /* //CONVERTIR NOM DU FICHIER + ESPACE + SA TAILLE
+    char taille_nom_fic[5];
+    sprintf(taille_nom_fic, "%d", msg_client ->datalen);
+
+    //La taille du texte est composée de la taille du nom du fichier, d'un espace, de la taille
+    //du int fichier puis du charactère \0.
+    size_t taille_texte_total = strlen(taille_nom_fic) + 1 + strlen(msg_client -> data) + 1;
+    char contenu_billet[taille_texte + 1];
+
+    //On recopie le nom du fichier, puis on ajoute un espace puis on ajoute la taille du fichier.
+    strncmp(msg_client -> data, &contenu_billet, strlen(msg_client -> data));
+    contenu_billet[ msg_client -> datalen + 1 ] = ' ';
+    strncmp(taille_nom_fic, contenu_billet + msg_client -> datalen + 2, strlen(taille_nom_fic));
+    contenu_billet[taille_texte - 1] = '\0'; */
+
+    close(sock);
+
+    return 0;
 }
 
 void telecharger_fichier() {
