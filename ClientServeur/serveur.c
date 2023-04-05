@@ -11,6 +11,7 @@
 
 #include "serveur.h"
 
+#define PORT 2121
 #define SIZE_MSG 512
 
 typedef struct base_serveur {
@@ -32,7 +33,8 @@ base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int sockli){
 
 
 int main(int argc, char **argv) {
-    return creation_serveur();
+    return connexion_udp();
+    //return creation_serveur();
 }
 
 
@@ -47,7 +49,7 @@ int creation_serveur() {
     struct sockaddr_in6 adrserv;
     memset(&adrserv, 0, sizeof(adrserv));
     adrserv.sin6_family = AF_INET6;
-    adrserv.sin6_port = htons(2121);
+    adrserv.sin6_port = htons(PORT);
     adrserv.sin6_addr = in6addr_any;
 
     //Ouverture de la socket avec la prise en charge à la fois de IPV4 et de IPV6 dans une socket polymorphe.
@@ -62,6 +64,46 @@ int creation_serveur() {
     if (r == -1) goto error;
 
     return accepter_clients(sock);
+
+    error:
+    close(sock);
+    perror("Erreur création du serveur. "); 
+    return EXIT_FAILURE;
+}
+
+int connexion_udp() {
+    //Creation de la socket UDP serveur IPV6.
+    int sock = socket(PF_INET6, SOCK_DGRAM, 0);
+    if (sock < 0) goto error;
+
+    struct sockaddr_in6 adrserv;
+    memset(&adrserv, 0, sizeof(adrserv));
+    adrserv.sin6_family = AF_INET6;
+    adrserv.sin6_port = htons(PORT);
+    adrserv.sin6_addr = in6addr_any;
+
+    //Ouverture de la socket avec la prise en charge à la fois de IPV4 et de IPV6 dans une socket polymorphe.
+    int no = 0;
+    int r = setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &no, sizeof(no));
+    if (r == -1) goto error;
+
+    r = bind(sock, (struct sockaddr *) &adrserv, sizeof(adrserv));
+    if (r == -1) goto error;
+
+    struct sockaddr_in6 adrclient;
+    socklen_t sizeclient = sizeof(adrclient);
+
+    char buffer[SIZE_MSG + 1];
+
+    while(1) {
+        memset(buffer, 0, SIZE_MSG + 1);
+        r = recvfrom(sock, buffer, SIZE_MSG, 0, (struct sockaddr *) &adrclient, &sizeclient);
+        if (r < 0) {perror("recv "); return 1; }
+
+        sprintf(buffer, "Test envoi serveur.\n");
+        r = sendto(sock, buffer, strlen(buffer), 0, (struct sockaddr *) &adrclient, sizeclient);
+        if (r < 0) {perror("sendto "); return 1; }
+    }
 
     error:
     close(sock);

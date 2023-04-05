@@ -8,6 +8,9 @@
 //Créé le serveur, renvoie 1 si raté et sinon appelle les autres fonctions de communication.
 int creation_serveur();
 
+//Créé un serveur UDP, renvoie 1 si raté.
+int connexion_udp();
+
 //Accepte les clients avec en parametre la socket serveur.
 int accepter_clients(int sockserv);
 
