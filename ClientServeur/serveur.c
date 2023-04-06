@@ -8,6 +8,8 @@
 #include <netdb.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include<sys/stat.h>
+#include <fcntl.h> 
 
 #include "serveur.h"
 
@@ -15,7 +17,7 @@
 #define SIZE_MSG 512
 //Valeur à part car modifiables à guises
 #define PORT_UDP 2121
-#define SIZE_PQG_UDP 512
+#define BUF_SIZE_UDP 512
 
 int main(int argc, char **argv) {
     return creation_serveur();
@@ -195,7 +197,7 @@ void * communication_client(void * arg_base_serveur) {
                 msg_serveur to_send = {msg_client -> codereq, msg_client -> id, msg_client -> numfil, retour};
                 envoie_reponse_client(sockcli, to_send);
                 close(sockcli);
-                retour = recevoir_donnees_fichier(msg_client, base_serv -> liste_fils, base_serv -> liste_uti);
+                retour = recevoir_donnees_fichier(msg_client, base_serv -> liste_fils, base_serv -> liste_uti, msg_client -> data);
             }
             break;
         //L'utilisateur veut telecharger un fichier.
@@ -388,38 +390,57 @@ int udp_envoi_port_client(msg_client * msg_client, liste_fils * liste_fils, user
     return PORT_UDP;
 }
 
-int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili) {
+int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * file_name) {
     //On créé notre connexion udp ainsi que  l'adresse client.
     int sock = connexion_udp();
-    if (sock < 0) return 1;
+    if (sock < 0) return -1;
 
     struct sockaddr_in6 adrclient;
     socklen_t sizeclient = sizeof(adrclient);
 
-    char buffer[SIZE_PQG_UDP];
+    //On créé un fichier 
+    int fd = open("fichier_recu.txt", O_CREAT | O_RDWR | O_TRUNC, 0640);
+    char buffer[BUF_SIZE_UDP + 1];
+    memset(buffer, 0, BUF_SIZE_UDP + 1);
 
-    memset(buffer, 0, SIZE_PQG_UDP);
-    int r = recvfrom(sock, buffer, SIZE_PQG_UDP, 0, (struct sockaddr *) &adrclient, &sizeclient);
-    if (r < 0) {perror("recv "); return 1; }
+    int r = recvfrom(sock, buffer, BUF_SIZE_UDP + 1, 0, (struct sockaddr *) &adrclient, &sizeclient);
+    if (r < 0) {
+        perror("recv "); 
+        close(sock);
+        return -1; 
+    }
 
-    printf("UDP recu : %s\n", buffer);
+    while(r > 0) {
+        r = write(fd, buffer, strlen(buffer) - 1);
+        if (r < 0) {
+            perror("write "); 
+            close(sock);
+            return -1;
+        }
 
-    /* //CONVERTIR NOM DU FICHIER + ESPACE + SA TAILLE
+        memset(buffer, 0, BUF_SIZE_UDP + 1);
+        r = recvfrom(sock, buffer, BUF_SIZE_UDP + 1, 0, (struct sockaddr *) &adrclient, &sizeclient);
+    }
+
+    close(sock);
+    close(fd);
+
+    //CONVERTIR NOM DU FICHIER + ESPACE + SA TAILLE
     char taille_nom_fic[5];
     sprintf(taille_nom_fic, "%d", msg_client ->datalen);
 
     //La taille du texte est composée de la taille du nom du fichier, d'un espace, de la taille
     //du int fichier puis du charactère \0.
     size_t taille_texte_total = strlen(taille_nom_fic) + 1 + strlen(msg_client -> data) + 1;
-    char contenu_billet[taille_texte + 1];
+    char contenu_billet[taille_texte_total + 1];
 
     //On recopie le nom du fichier, puis on ajoute un espace puis on ajoute la taille du fichier.
-    strncmp(msg_client -> data, &contenu_billet, strlen(msg_client -> data));
+    strncpy(msg_client -> data, contenu_billet, strlen(msg_client -> data));
     contenu_billet[ msg_client -> datalen + 1 ] = ' ';
-    strncmp(taille_nom_fic, contenu_billet + msg_client -> datalen + 2, strlen(taille_nom_fic));
-    contenu_billet[taille_texte - 1] = '\0'; */
+    strncpy(taille_nom_fic, contenu_billet + msg_client -> datalen + 2, strlen(taille_nom_fic));
+    contenu_billet[taille_texte_total - 1] = '\0';
 
-    close(sock);
+    poster_billet(msg_client, liste_fils, liste_utili, contenu_billet);
 
     return 0;
 }

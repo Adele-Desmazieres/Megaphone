@@ -7,6 +7,8 @@
 #include <ctype.h>
 #include <netinet/in.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "interpreteur.h"
 #include "client.h"
@@ -453,8 +455,7 @@ int poster_fichier_client(int *userid) {
 
     // interprète la réponse
     msg_serveur *rep = tcp_to_msgserveur(buff);
-    if (rep->codereq != 5)
-    { // échec du côté serveur
+    if (rep->codereq != 5) { // échec du côté serveur
         printf("Echec du traitement côté serveur.\n");
         return EXIT_FAILURE;
     }
@@ -485,15 +486,41 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
     memset(&adrclient, 0, sizeof(adrclient));
     
     int sock = connexion_udp_6(&adrclient, port);
-    if (sock < 0) { perror("sock "); return 1; }
+    if (sock < 0) { perror("sock "); close(sock); return 1; }
     socklen_t len = sizeof(adrclient);
 
+    int fd = open(file_path, O_RDONLY, 0640);
     char buffer[BUF_SIZE + 1];
+    int numero_paq = 0;
 
-    sprintf(buffer, "Message test pour le serveur\n");
-    int r = sendto(sock, buffer, strlen(buffer), 0, (struct sockaddr *)&adrclient, len);
-    if (r < 0){ perror("sendto "); return 1; }
+    buffer[0] = numero_paq;
+
+    int r = read(fd, buffer, BUF_SIZE + 1);
+    if (r < 0) { 
+        perror("read "); 
+        close(sock);
+        return 1; 
+    }
+    else if (r == 0) {
+        printf("Le fichier que vous voulez envoyer est vide.\n");
+        close(sock);
+        return 1;
+    }
+
+    while (r > 0) {
+        r = sendto(sock, buffer, BUF_SIZE + 1, 0, (struct sockaddr *)&adrclient, len);
+        if (r < 0){ 
+            perror("sendto ");
+            close(sock);
+            return 1; 
+        }
+
+        memset(buffer, 0, BUF_SIZE + 1);
+        r = read(fd, buffer, BUF_SIZE + 1);
+    }
 
     close(sock);
+    close(fd);
+    
     return 0;
 }

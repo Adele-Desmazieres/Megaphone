@@ -35,7 +35,7 @@ int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * 
 void liste_n_billets();
 void abonner_fil();
 int udp_envoi_port_client(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili);
-int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili);
+int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * file_name);
 void telecharger_fichier();
 
 #endif
