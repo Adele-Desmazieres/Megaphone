@@ -145,7 +145,7 @@ void * communication_client(void * arg_base_serveur) {
 
     //tcp_to_msgclient effectue les recv qui correspondent au premier message reçu
     msg_client * msg_client = tcp_to_msgclient(sockcli);
-    if (msg_client == NULL){
+    if (msg_client == NULL) {
         close(sockcli);
         perror("Problème reception message @ communication_client @ serveur.c");
         exit(EXIT_FAILURE);
@@ -208,7 +208,9 @@ void * communication_client(void * arg_base_serveur) {
     }
 
     free(arg_base_serveur);
-    return NULL;    
+    free(msg_client);
+
+    return NULL;
 }
 
 void envoi_erreur_client(int sockcli) {
@@ -391,15 +393,22 @@ int udp_envoi_port_client(msg_client * msg_client, liste_fils * liste_fils, user
 }
 
 int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * file_name) {
-    //On créé notre connexion udp ainsi que  l'adresse client.
+    //On créé notre connexion udp ainsi que l'adresse client.
     int sock = connexion_udp();
     if (sock < 0) return -1;
 
     struct sockaddr_in6 adrclient;
     socklen_t sizeclient = sizeof(adrclient);
 
-    //On créé un fichier 
-    int fd = open("fichier_recu.txt", O_CREAT | O_RDWR | O_TRUNC, 0640);
+    //On créé un fichier
+    int fd = open("fichier_recu.txt", O_CREAT | O_WRONLY | O_TRUNC, 0640);
+    if (fd == -1) {
+        perror("open");
+        close(sock);
+        return -1;
+    }
+
+    lseek(fd, 0, SEEK_SET);
     char buffer[BUF_SIZE_UDP + 1];
     memset(buffer, 0, BUF_SIZE_UDP + 1);
 
@@ -407,19 +416,27 @@ int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, u
     if (r < 0) {
         perror("recv "); 
         close(sock);
-        return -1; 
+        close(fd);
+        return -1;
     }
 
     while(r > 0) {
-        r = write(fd, buffer, strlen(buffer) - 1);
+        r = write(fd, buffer, strlen(buffer));
         if (r < 0) {
-            perror("write "); 
+            perror("write ");
+            close(fd);
             close(sock);
             return -1;
         }
 
         memset(buffer, 0, BUF_SIZE_UDP + 1);
         r = recvfrom(sock, buffer, BUF_SIZE_UDP + 1, 0, (struct sockaddr *) &adrclient, &sizeclient);
+        if (r < 0) {
+            perror("recv "); 
+            close(fd);
+            close(sock);
+            return -1;
+        }
     }
 
     close(sock);
@@ -441,7 +458,7 @@ int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, u
     contenu_billet[taille_texte_total - 1] = '\0';
 
     poster_billet(msg_client, liste_fils, liste_utili, contenu_billet);
-
+    
     return 0;
 }
 

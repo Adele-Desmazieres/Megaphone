@@ -413,15 +413,18 @@ int poster_fichier_client(int *userid) {
     char *file_path;
     char *num_input;
 
+    int n = 0;
+
     while (!string_is_number(num_input)) {
         printf("Entrez le numéro du fil sur lequel vous voulez poster votre fichier > ");
         num_input = getln();
-        int n = strlen(num_input);
+        n = strlen(num_input);
         if (n <= 0) return 1;
     }
 
     printf("Entrez le nom du fichier > ");
     file_path = getln();
+    n = strlen(file_path);
 
     int numfil = atoi(num_input);
 
@@ -443,8 +446,8 @@ int poster_fichier_client(int *userid) {
     int sock = connexion_6();
     if (sock == -1)
         return EXIT_FAILURE;
-    int size_exchanged = send(sock, marray, 12, 0);
-    if (size_exchanged != 12)
+    int size_exchanged = send(sock, marray, n/2 + 4, 0);
+    if (size_exchanged != n/2 + 4)
         goto error;
 
     // recoit la réponse
@@ -490,6 +493,11 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
     socklen_t len = sizeof(adrclient);
 
     int fd = open(file_path, O_RDONLY, 0640);
+    if (fd == -1) {
+        perror("open");
+        close(sock);
+        return -1;
+    }
     char buffer[BUF_SIZE + 1];
     int numero_paq = 0;
 
@@ -499,12 +507,12 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
     if (r < 0) { 
         perror("read "); 
         close(sock);
-        return 1; 
+        return -1; 
     }
     else if (r == 0) {
         printf("Le fichier que vous voulez envoyer est vide.\n");
         close(sock);
-        return 1;
+        return -1;
     }
 
     while (r > 0) {
@@ -512,11 +520,16 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
         if (r < 0){ 
             perror("sendto ");
             close(sock);
-            return 1; 
+            return -1; 
         }
 
         memset(buffer, 0, BUF_SIZE + 1);
         r = read(fd, buffer, BUF_SIZE + 1);
+        if (r < 0){ 
+            perror("read ");
+            close(sock);
+            return -1; 
+        }
     }
 
     close(sock);
