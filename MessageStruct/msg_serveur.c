@@ -44,7 +44,7 @@ uint16_t * msg_serveur_to_send(msg_serveur struc){
     return msg; 
 }
 
-msg_serveur * tcp_to_msgserveur(uint16_t * msg) {
+/* msg_serveur * tcp_to_msgserveur(uint16_t * msg) {
 
     //ENTETE
     //CODEREQ | ID
@@ -56,7 +56,25 @@ msg_serveur * tcp_to_msgserveur(uint16_t * msg) {
     int numfil = ntohs(msg[1]);
     int nb = ntohs(msg[2]);
 
+
+
     return msg_serveur_constr(codereq, id, numfil, nb);
+} */
+
+msg_serveur tcp_to_msgserveur(uint16_t * msg) {
+
+    //ENTETE
+    //CODEREQ | ID
+    uint16_t entete = ntohs(msg[0]);
+    int id = (entete >> 5);
+    int codereq = entete - (id << 5);
+
+    //NUMFIL ET NB
+    int numfil = ntohs(msg[1]);
+    int nb = ntohs(msg[2]);
+
+    msg_serveur retour = {codereq, id, numfil, nb};
+    return retour;
 }
 
 //Transforme un message représentant un billet en message TCP
