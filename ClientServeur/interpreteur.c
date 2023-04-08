@@ -101,7 +101,7 @@ int inscription_ou_debut_session(int *userid)
 /*
     Inscrit l'utilisateur :
     - en cas de réussite, initialise userid et renvoie 0
-    - sinon renvoie 1
+    - sinon renvoie -1
 */
 int inscription(int *userid)
 {
@@ -123,12 +123,11 @@ int inscription(int *userid)
             str_input[n - 1] = '\0';
             n = n - 1;
         }
-        printf("longueur : %d\n", n);
 
         // quitte l'inscription si rien n'est entré
         if (n <= 0)
         {
-            return 1;
+            return -1;
         }
         else if (n > PSEUDO_LIMIT)
         { // TODO : check pseudo contient que des caractères alphanum ?
@@ -144,7 +143,7 @@ int inscription(int *userid)
     int sock = connexion_6();
     if (sock == -1) {
         free(marray);
-        return EXIT_FAILURE;
+        return -1;
     }
 
     int size_exchanged = send(sock, marray, 12, 0);
@@ -163,7 +162,7 @@ int inscription(int *userid)
     { // échec du côté serveur
         printf("Echec de l'inscription côté serveur.\n");
         free(marray);
-        return 1;
+        return -1;
     }
 
     // réussite
@@ -177,13 +176,13 @@ error:
     printf("Erreur communication avec le serveur.\n");
     free(marray);
     close(sock);
-    return EXIT_FAILURE;
+    return -1;
 }
 
 /*
     Démarrage d'une session utilisateur avec son identifiant.
     Ne fait aucune vérif quant à l'existence de l'identifiant dans les données du serveur.
-    Renvoie 0 si réussite, et 1 sinon.
+    Renvoie 0 si réussite, et -1 sinon.
 */
 int debut_session(int *userid)
 {
@@ -194,7 +193,7 @@ int debut_session(int *userid)
     // quitte la fonction si rien n'est entré
     if (n <= 1)
     {
-        return 1;
+        return -1;
     }
     // redemande un identifiant s'il est trop long
     while (!isdigit(str_input[0]))
@@ -204,7 +203,7 @@ int debut_session(int *userid)
         int n = strlen(str_input);
         if (n <= 1)
         {
-            return 1;
+            return -1;
         }
     }
 
@@ -385,8 +384,7 @@ int poster_billet_client(int *userid)
     int sock = connexion_6();
     if (sock == -1) {
         free(marray);
-        free(str_input);
-        return EXIT_FAILURE;
+        return -1;
     }
     int size_exchanged = send(sock, marray, 12, 0);
     if (size_exchanged != 12)
@@ -403,15 +401,13 @@ int poster_billet_client(int *userid)
     if (rep.codereq != 2)
     { // échec du côté serveur
         free(marray);
-        free(str_input);
         free(mstruct.data);
         printf("Echec du traitement côté serveur.\n");
-        return 1;
+        return -1;
     }
 
     // réussite
     free(marray);
-    free(str_input);
     free(mstruct.data);
     printf("1 message envoyé sur le fil %d.\n", rep.numfil);
     close(sock);
@@ -420,10 +416,9 @@ int poster_billet_client(int *userid)
     error:
     printf("Erreur communication avec le serveur.\n");
     free(marray);
-    free(str_input);
     free(mstruct.data);
     close(sock);
-    return EXIT_FAILURE;
+    return -1;
 }
 
 int poster_fichier_client(int *userid) {
@@ -448,12 +443,12 @@ int poster_fichier_client(int *userid) {
 
     //On vérifie que ce fichier existe bien.
     struct stat * buf = malloc(sizeof(struct stat));
-    if (buf == NULL) { perror("malloc "); return EXIT_FAILURE; }
+    if (buf == NULL) { perror("malloc "); return -1; }
     if (stat(str_input, buf) != 0) {
         printf("Le fichier que vous avez entré n'est pas trouvable.\n");
         free(buf);
         free(str_input);
-        return EXIT_FAILURE;
+        return -1;
     }
 
     free(buf);
@@ -464,7 +459,7 @@ int poster_fichier_client(int *userid) {
 
     // l'envoie
     int sock = connexion_6();
-    if (sock == -1) { free(marray); free(str_input); return EXIT_FAILURE; }
+    if (sock == -1) { free(marray); free(str_input); return -1; }
 
     int size_exchanged = send(sock, marray, 12, 0);
     if (size_exchanged != 12)
@@ -482,7 +477,7 @@ int poster_fichier_client(int *userid) {
         printf("Echec du traitement côté serveur.\n");
         free(marray);
         free(str_input);
-        return EXIT_FAILURE;
+        return -1;
     }
 
     // réussite
@@ -490,14 +485,8 @@ int poster_fichier_client(int *userid) {
     close(sock);
 
     int r = envoyer_donnees_fichier(userid, str_input, rep.nb);
-    if (r < 0) { 
-        printf("Erreur envoi du fichier.\n");
-        free(str_input);
-        return EXIT_FAILURE;
-    }
-    else {
-        printf("Fichier bien envoyé.\n");
-    }
+    if (r == -1) goto error;
+    else printf("Fichier bien envoyé.\n");
 
     free(str_input);
     free(marray);
@@ -508,7 +497,7 @@ int poster_fichier_client(int *userid) {
     free(marray);
     free(str_input);
     close(sock);
-    return EXIT_FAILURE;
+    return -1;
 }
 
 int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
@@ -516,7 +505,7 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
     memset(&adrclient, 0, sizeof(adrclient));
     
     int sock = connexion_udp_6(&adrclient, port);
-    if (sock < 0) { perror("sock "); close(sock); return 1; }
+    if (sock < 0) { perror("sock "); return 1; }
     socklen_t len = sizeof(adrclient);
 
     int fd = open(file_path, O_RDONLY, 0640);
@@ -547,7 +536,7 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
         if (r < 0){ 
             perror("sendto ");
             close(sock);
-            return -1; 
+            return -1;
         }
 
         memset(buffer, 0, BUF_SIZE + 1);

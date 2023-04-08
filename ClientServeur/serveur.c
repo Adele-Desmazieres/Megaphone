@@ -146,12 +146,11 @@ void * communication_client(void * arg_base_serveur) {
     //tcp_to_msgclient effectue les recv qui correspondent au premier message reçu
     msg_client * msg_client = tcp_to_msgclient(sockcli);
     if (msg_client == NULL) {
+        free(arg_base_serveur);
         close(sockcli);
         perror("Problème reception message @ communication_client @ serveur.c");
         exit(EXIT_FAILURE);
     }
-
-    //printf("Pseudo : %s\n", msg_client->data);
 
     int retour = 0;
 
