@@ -144,7 +144,9 @@ msg_client * tcp_to_msgclient(int sockfd) {
 
     }
     
-    if(lire_header_until_datalen(sockfd, ret) < 0) return NULL;
+    int datalen = lire_header_until_datalen(sockfd, ret);
+    if(datalen < 0) return NULL;
+    if(datalen == 0) return ret;
 
     if(lire_data_depuistcp(sockfd, ret, ret->datalen) < 0) return NULL;
 
