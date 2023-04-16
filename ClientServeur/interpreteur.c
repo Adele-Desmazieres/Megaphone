@@ -24,6 +24,8 @@ int main(int argc, char **argv)
 {
     printf("Initialisation du programme client.\n");
     int *userid = malloc(sizeof(int));
+    if (userid == NULL) return 1;
+
     *userid = -1; // userid négatif = pas set
     int ret = 1;
 
@@ -40,7 +42,7 @@ int main(int argc, char **argv)
     ret = interpreteur_utilisateur(userid);
 
     printf("Fin de session utilisateur.\n");
-    return 0;
+    return ret;
 }
 
 /*
@@ -99,7 +101,7 @@ int inscription_ou_debut_session(int *userid)
 /*
     Inscrit l'utilisateur :
     - en cas de réussite, initialise userid et renvoie 0
-    - sinon renvoie 1
+    - sinon renvoie -1
 */
 int inscription(int *userid)
 {
@@ -121,12 +123,11 @@ int inscription(int *userid)
             str_input[n - 1] = '\0';
             n = n - 1;
         }
-        printf("longueur : %d\n", n);
 
         // quitte l'inscription si rien n'est entré
         if (n <= 0)
         {
-            return 1;
+            return -1;
         }
         else if (n > PSEUDO_LIMIT)
         { // TODO : check pseudo contient que des caractères alphanum ?
@@ -134,16 +135,17 @@ int inscription(int *userid)
         }
     }
 
-    // crée le message contenant le pseudo en suivant le protocole
-    msg_client *mstruct = msg_client_constr(1, 0, -1, -1, n, str_input, 1);
-
-    // printf("PseudoClient : %s\n", mstruct->data);
-    u_int16_t *marray = msg_client_to_send(*mstruct);
+    // crée le message contenant le pseudo en suivant le protocole²
+    msg_client mstruct = { 1, 0, -1, -1, n, str_input, 1 };
+    u_int16_t *marray = msg_client_to_send(mstruct);
 
     // envoie le message
     int sock = connexion_6();
-    if (sock == -1)
-        return EXIT_FAILURE;
+    if (sock == -1) {
+        free(marray);
+        return -1;
+    }
+
     int size_exchanged = send(sock, marray, 12, 0);
     if (size_exchanged != 12)
         goto error;
@@ -155,29 +157,32 @@ int inscription(int *userid)
         goto error;
 
     // interprète la réponse
-    msg_serveur *rep = tcp_to_msgserveur(buff);
-    if (rep->codereq != 1)
+    msg_serveur rep = tcp_to_msgserveur(buff);
+    if (rep.codereq != 1)
     { // échec du côté serveur
         printf("Echec de l'inscription côté serveur.\n");
-        return 1;
+        free(marray);
+        return -1;
     }
 
     // réussite
-    *userid = rep->id;
+    *userid = rep.id;
     printf("Prennez en note votre identifiant : %d\n", *userid);
+    free(marray);
     close(sock);
     return 0;
 
 error:
     printf("Erreur communication avec le serveur.\n");
+    free(marray);
     close(sock);
-    return EXIT_FAILURE;
+    return -1;
 }
 
 /*
     Démarrage d'une session utilisateur avec son identifiant.
     Ne fait aucune vérif quant à l'existence de l'identifiant dans les données du serveur.
-    Renvoie 0 si réussite, et 1 sinon.
+    Renvoie 0 si réussite, et -1 sinon.
 */
 int debut_session(int *userid)
 {
@@ -188,7 +193,7 @@ int debut_session(int *userid)
     // quitte la fonction si rien n'est entré
     if (n <= 1)
     {
-        return 1;
+        return -1;
     }
     // redemande un identifiant s'il est trop long
     while (!isdigit(str_input[0]))
@@ -198,7 +203,7 @@ int debut_session(int *userid)
         int n = strlen(str_input);
         if (n <= 1)
         {
-            return 1;
+            return -1;
         }
     }
 
@@ -270,6 +275,8 @@ int interpreteur_utilisateur(int *userid)
         }
     }
 
+    free(userid);
+
     return 0;
 }
 
@@ -293,7 +300,7 @@ int lister_commandes_en_session()
 */
 int string_is_number(char *s)
 {
-    if (s == NULL)
+    if (s == NULL || s[0] == '\0')
         return 0;
     for (int i = 0; i < strlen(s); i++)
     {
@@ -354,32 +361,31 @@ int poster_billet_client(int *userid)
     char *num_input;
     int n;
 
-    while (!string_is_number(num_input))
-    {
-        printf("Entrez le numéro du fil sur lequel envoyer le message > ");
+    //On prend le numéro du fil dans lequel l'utilisateur veux poster.
+    printf("Entrez le numéro du fil sur lequel envoyer le message > ");
+    num_input = getln();
+    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
+        printf("Veuillez entrer un numéro correct > ");
         num_input = getln();
-        n = strlen(num_input);
-        if (n <= 0)
-        {
-            return 1;
-        }
     }
+    int numfil = atoi(num_input);
+    free(num_input);
 
+    //On prend le message que l'utilisatur veut écrire dans le billet.
     printf("Entrez votre message > ");
     str_input = getln();
-
-    int numfil = atoi(str_input);
     n = strlen(str_input);
 
     // crée le message
-    msg_client *mstruct = msg_client_constr(2, *userid, numfil, 0, n, str_input, 0);
-    // printf("Message : %s\n", mstruct->data);
-    u_int16_t *marray = msg_client_to_send(*mstruct);
+    msg_client mstruct = {2, *userid, numfil, 0, n, str_input, 0};
+    u_int16_t *marray = msg_client_to_send(mstruct);
 
     // l'envoie
     int sock = connexion_6();
-    if (sock == -1)
-        return EXIT_FAILURE;
+    if (sock == -1) {
+        free(marray);
+        return -1;
+    }
     int size_exchanged = send(sock, marray, 12, 0);
     if (size_exchanged != 12)
         goto error;
@@ -391,63 +397,72 @@ int poster_billet_client(int *userid)
         goto error;
 
     // interprète la réponse
-    msg_serveur *rep = tcp_to_msgserveur(buff);
-    if (rep->codereq != 2)
+    msg_serveur rep = tcp_to_msgserveur(buff);
+    if (rep.codereq != 2)
     { // échec du côté serveur
+        free(marray);
+        free(mstruct.data);
         printf("Echec du traitement côté serveur.\n");
-        return 1;
+        return -1;
     }
 
     // réussite
-    printf("1 message envoyé sur le fil %d.\n", rep->numfil);
+    free(marray);
+    free(mstruct.data);
+    printf("1 message envoyé sur le fil %d.\n", rep.numfil);
     close(sock);
     return 0;
 
     error:
     printf("Erreur communication avec le serveur.\n");
+    free(marray);
+    free(mstruct.data);
     close(sock);
-    return EXIT_FAILURE;
+    return -1;
 }
 
 int poster_fichier_client(int *userid) {
-    char *file_path;
+    char *str_input;
     char *num_input;
+    int n;
 
-    int n = 0;
-
-    while (!string_is_number(num_input)) {
-        printf("Entrez le numéro du fil sur lequel vous voulez poster votre fichier > ");
+    //On prend le numéro du fil dans lequel l'utilisateur veux poster le fichier.
+    printf("Entrez le numéro du fil sur lequel vous voulez poster votre fichier > ");
+    num_input = getln();
+    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
+        printf("Veuillez entrer un numéro correct > ");
         num_input = getln();
-        n = strlen(num_input);
-        if (n <= 0) return 1;
     }
-
-    printf("Entrez le nom du fichier > ");
-    file_path = getln();
-    n = strlen(file_path);
-
     int numfil = atoi(num_input);
+    free(num_input);
 
-    //On vérifie que le fichier existe bien.
+    //On prend le nom/chemin du fichier.
+    printf("Entrez le nom du fichier > ");
+    str_input = getln();
+    n = strlen(str_input);
+
+    //On vérifie que ce fichier existe bien.
     struct stat * buf = malloc(sizeof(struct stat));
-    if (stat(file_path, buf) != 0) {
+    if (buf == NULL) { perror("malloc "); return -1; }
+    if (stat(str_input, buf) != 0) {
         printf("Le fichier que vous avez entré n'est pas trouvable.\n");
         free(buf);
-        return EXIT_FAILURE;
+        free(str_input);
+        return -1;
     }
 
     free(buf);
 
     // On créé le message avec lendata le nombre de caractère du fichier et data le nom du fichier.
-    msg_client *mstruct = msg_client_constr(5, *userid, numfil, 0, strlen(file_path), file_path, 0);
-    u_int16_t *marray = msg_client_to_send(*mstruct);
+    msg_client mstruct = {5, *userid, numfil, 0, strlen(str_input), str_input, 0 };
+    u_int16_t *marray = msg_client_to_send(mstruct);
 
     // l'envoie
     int sock = connexion_6();
-    if (sock == -1)
-        return EXIT_FAILURE;
-    int size_exchanged = send(sock, marray, n/2 + 4, 0);
-    if (size_exchanged != n/2 + 4)
+    if (sock == -1) { free(marray); free(str_input); return -1; }
+
+    int size_exchanged = send(sock, marray, 12, 0);
+    if (size_exchanged != 12)
         goto error;
 
     // recoit la réponse
@@ -457,31 +472,32 @@ int poster_fichier_client(int *userid) {
         goto error;
 
     // interprète la réponse
-    msg_serveur *rep = tcp_to_msgserveur(buff);
-    if (rep->codereq != 5) { // échec du côté serveur
+    msg_serveur rep = tcp_to_msgserveur(buff);
+    if (rep.codereq != 5) { // échec du côté serveur
         printf("Echec du traitement côté serveur.\n");
-        return EXIT_FAILURE;
+        free(marray);
+        free(str_input);
+        return -1;
     }
 
     // réussite
-    printf("Numero de port serveur reçu : %d.\n", rep -> nb);
+    printf("Numero de port serveur reçu : %d.\n", rep.nb);
     close(sock);
 
-    int r = envoyer_donnees_fichier(userid, file_path, rep -> nb);
-    if (r < 0) { 
-        printf("Erreur envoi du fichier.\n");
-        return EXIT_FAILURE;
-    }
-    else {
-        printf("Fichier bien envoyé.\n");
-    }
+    int r = envoyer_donnees_fichier(userid, str_input, rep.nb);
+    if (r == -1) goto error;
+    else printf("Fichier bien envoyé.\n");
 
+    free(str_input);
+    free(marray);
     return 0;
 
     error:
     printf("Erreur communication avec le serveur.\n");
+    free(marray);
+    free(str_input);
     close(sock);
-    return EXIT_FAILURE;
+    return -1;
 }
 
 int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
@@ -489,7 +505,7 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
     memset(&adrclient, 0, sizeof(adrclient));
     
     int sock = connexion_udp_6(&adrclient, port);
-    if (sock < 0) { perror("sock "); close(sock); return 1; }
+    if (sock < 0) { perror("sock "); return 1; }
     socklen_t len = sizeof(adrclient);
 
     int fd = open(file_path, O_RDONLY, 0640);
@@ -520,7 +536,7 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
         if (r < 0){ 
             perror("sendto ");
             close(sock);
-            return -1; 
+            return -1;
         }
 
         memset(buffer, 0, BUF_SIZE + 1);

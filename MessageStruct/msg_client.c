@@ -158,6 +158,7 @@ u_int16_t * msg_client_to_send(msg_client struc){
 
     //Taille: 6 octets si inscription sinon, dépend de la taille du texte
     u_int16_t * msg = (struc.is_inscript) ? malloc(sizeof(u_int16_t) * 6) : malloc(sizeof(u_int16_t) * (4 + (strlen(struc.data) - 1) /2) );
+    if (msg == NULL) return NULL;
 
     //ENTETE
     //CODEREQ | ID
@@ -166,13 +167,10 @@ u_int16_t * msg_client_to_send(msg_client struc){
     //En cas d'inscription
     if(struc.is_inscript){
         //PSEUDO
-        //printf("Taille du pseudo = %d\n", strlen(struc.data));
         for (int i = 0; i < 10; i += 2) {
             //En cas de dépassement, on remplit de #
             char car1 = ( i < strlen(struc.data)) ? struc.data[i] : '#';
             char car2 = ( i+1 < strlen(struc.data)) ? struc.data[i+1] : '#';
-
-            //printf("%c %c \n", car1, car2);
 
             msg[(i/2) + 1] = (u_int16_t)(((int)car2  << 8) + (int)car1);
         }
@@ -196,10 +194,7 @@ u_int16_t * msg_client_to_send(msg_client struc){
             char car1 = ( data_pointer < strlen(struc.data)) ? struc.data[data_pointer] : '#';
             char car2 = ( data_pointer+1 < strlen(struc.data)) ? struc.data[data_pointer+1] : '#';
 
-            //printf("%c %c \n", car1, car2);
             msg[i] = htons(((int)car2 << 8) + (int)car1);
-
-            //printf("%d \n", msg[i]);
             
     }
     return msg; 
