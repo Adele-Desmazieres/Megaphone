@@ -104,7 +104,7 @@ uint16_t * msg_billet_to_send(msg_billet_envoi struc){
     }
 
     //DATA
-    ret[11] = htons( ((int)struc.data[0] << 8) + struc.datalen );
+    ret[11] = (u_int16_t)( ((int)struc.data[0] << 8) + struc.datalen );
 
     //DATA restant
     int data_pointer = 1;

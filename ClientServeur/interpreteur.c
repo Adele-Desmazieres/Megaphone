@@ -375,7 +375,7 @@ int poster_billet_client(int *userid)
     printf("Entrez votre message > ");
     str_input = getln();
     n = strlen(str_input);
-
+    
     // crée le message
     msg_client mstruct = {2, *userid, numfil, 0, n, str_input, 0};
     u_int16_t *marray = msg_client_to_send(mstruct);
