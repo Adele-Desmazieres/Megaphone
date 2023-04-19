@@ -19,6 +19,7 @@
 #define ID_LIMIT 10
 #define MSG_LIMIT 255
 #define PSEUDO_LIMIT 10
+#define ENTETE_LEN 7
 
 int main(int argc, char **argv)
 {
@@ -362,16 +363,17 @@ int poster_billet_client(int *userid)
     int n;
 
     //On prend le numéro du fil dans lequel l'utilisateur veux poster.
-    printf("Entrez le numéro du fil sur lequel envoyer le message > ");
+    printf("Entrez le numéro du fil sur lequel envoyer le message, ou 0 pour un nouveau fil > ");
     num_input = getln();
     while (!string_is_number(num_input) || strlen(num_input) <= 0) {
-        printf("Veuillez entrer un numéro correct > ");
+        printf("Non, veuillez entrer un numéro de fil > ");
+        free(num_input);
         num_input = getln();
     }
     int numfil = atoi(num_input);
     free(num_input);
 
-    //On prend le message que l'utilisatur veut écrire dans le billet.
+    // On prend le message que l'utilisatur veut écrire dans le billet.
     printf("Entrez votre message > ");
     str_input = getln();
     n = strlen(str_input);
@@ -386,8 +388,10 @@ int poster_billet_client(int *userid)
         free(marray);
         return -1;
     }
-    int size_exchanged = send(sock, marray, 12, 0);
-    if (size_exchanged != 12)
+    int msglen = n + ENTETE_LEN;
+    printf("msglen : %d\n", msglen);
+    int size_exchanged = send(sock, marray, msglen, 0);
+    if (size_exchanged != msglen)
         goto error;
 
     // recoit la réponse
@@ -427,10 +431,11 @@ int poster_fichier_client(int *userid) {
     int n;
 
     //On prend le numéro du fil dans lequel l'utilisateur veux poster le fichier.
-    printf("Entrez le numéro du fil sur lequel vous voulez poster votre fichier > ");
+    printf("Entrez le numéro du fil sur lequel vous voulez poster votre fichier, ou 0 pour un nouveau fil > ");
     num_input = getln();
     while (!string_is_number(num_input) || strlen(num_input) <= 0) {
         printf("Veuillez entrer un numéro correct > ");
+        free(num_input);
         num_input = getln();
     }
     int numfil = atoi(num_input);
