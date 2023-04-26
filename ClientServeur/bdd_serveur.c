@@ -24,11 +24,15 @@ billet * billet_constr(char * auteur, char * texte){
 
     ret->texte = malloc((strlen(texte) + 1) * sizeof(char));
     if(ret->texte == NULL) perror("malloc billet");
-    ret->texte = strcat(ret->texte, texte);
+    //ret->texte = strcat(ret->texte, texte);
+    memset(ret -> texte, '\0', strlen(texte) + 1);
+    strncpy(ret -> texte, texte, strlen(texte));
 
     ret->auteur = malloc((strlen(auteur) + 1) * sizeof(char));
     if(ret->auteur == NULL) perror("malloc billet");
-    ret->auteur = strcat(ret->auteur, auteur);
+    //ret->auteur = strcat(ret->auteur, auteur);
+    memset(ret -> auteur, '\0', strlen(auteur) + 1);
+    strncpy(ret -> auteur, auteur, strlen(auteur));
 
     return ret;
 
@@ -46,6 +50,8 @@ fil * fil_constr(char * auteur, char * texte){
     ret->nb_de_msg = 1;
 
     ret->suiv = NULL;
+
+    printf("TEXTE DU BILLET : %s\n", texte);
 
     return ret;
 
@@ -119,6 +125,8 @@ void ajouter_billet(fil * f, char * auteur, char * texte){
     nouv->prec = billet_tmp;
 
     f->nb_de_msg++;
+
+    printf("TEXTE DU BILLET : %s\n", texte);
 
     return;
 
@@ -211,7 +219,9 @@ user_listnode * user_listnode_constr(char * name, int id){
     ret->id = id;
     ret->pseudo = malloc((strlen(name) +1) * sizeof(char));
     if(ret->pseudo == NULL) perror("malloc userlist_node");
-    strcat (ret->pseudo, name);
+    //strcat (ret->pseudo, name);
+    memset(ret -> pseudo, '\0', strlen(name) + 1);
+    strncpy(ret -> pseudo, name, strlen(name));
 
     ret->suiv = NULL;
 

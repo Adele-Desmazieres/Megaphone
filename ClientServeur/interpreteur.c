@@ -464,10 +464,14 @@ int poster_fichier_client(int *userid) {
 
     // l'envoie
     int sock = connexion_6();
-    if (sock == -1) { free(marray); free(str_input); return -1; }
-
-    int size_exchanged = send(sock, marray, 12, 0);
-    if (size_exchanged != 12)
+    if (sock == -1) {
+        free(marray);
+        return -1;
+    }
+    int msglen = n + ENTETE_LEN;
+    printf("msglen : %d\n", msglen);
+    int size_exchanged = send(sock, marray, msglen, 0);
+    if (size_exchanged != msglen)
         goto error;
 
     // recoit la réponse

@@ -151,7 +151,7 @@ msg_client * tcp_to_msgclient(int sockfd) {
 u_int16_t * msg_client_to_send(msg_client struc){
 
     //Taille: 6 octets si inscription sinon, dépend de la taille du texte
-    u_int16_t * msg = (struc.is_inscript) ? malloc(sizeof(u_int16_t) * 6) : malloc(sizeof(u_int16_t) * (4 + (strlen(struc.data) - 1) /2) );
+    u_int16_t * msg = (struc.is_inscript) ? malloc(sizeof(u_int16_t) * 6) : malloc(sizeof(u_int16_t) * (4 + (strlen(struc.data)) /2) );
     if (msg == NULL) return NULL;
 
     //ENTETE
