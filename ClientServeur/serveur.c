@@ -167,6 +167,7 @@ void * communication_client(void * arg_base_serveur) {
             break;
         //L'utilisateur veut poster un billet.
         case 2 :
+
             retour = poster_billet(msg_client, base_serv -> liste_fils, base_serv -> liste_uti, msg_client -> data);
             if (retour == -1) envoi_erreur_client(sockcli);
             else {
@@ -252,6 +253,7 @@ int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * 
     //Si num_fil vaut 0 alors l'utilisateur cherche à poster sur un nouveau fil avec pseudo et texte.
     if (msg_client -> numfil == 0) {
         char * username = get_name(liste_utili, msg_client -> id);
+        
         fil * nouveau_fil = fil_constr(username, contenu);
         if (nouveau_fil == NULL) { perror("Erreur creation de fil\n."); return 1; }
         num_fil = ajouter_fil(liste_fils, nouveau_fil);

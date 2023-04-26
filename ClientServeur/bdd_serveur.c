@@ -41,6 +41,7 @@ fil * fil_constr(char * auteur, char * texte){
     fil * ret = malloc(sizeof(fil));
     if(ret == NULL) perror("malloc fil");
 
+    
     ret->premier_msg = billet_constr(auteur, texte);
     ret->nb_de_msg = 1;
 
@@ -55,7 +56,7 @@ fil * get_fil_id(liste_fils * l, int numfil) {
 
     int index = 1;
     fil * current = l -> premier_fil;
-    while (index != numfil || current -> suiv != NULL) {
+    while (index != numfil && current -> suiv != NULL) {
         index += 1;
         current = current -> suiv;
     }

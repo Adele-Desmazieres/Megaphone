@@ -90,18 +90,9 @@ int lire_header_until_datalen(int sockfd, msg_client * msg){
         return -1;
     }
 
-    //NUMFIL ET NB
-    int numfil = ntohs(oct[0]);
-    int nb = ntohs(oct[1]);
-
-    //DATA
-    u_int16_t datalenData = ntohs(oct[3]);
-    int car1 = (datalenData >> 8);
-    int datalen = (datalenData - ((int)car1 << 8));
-
-    msg->numfil = numfil;
-    msg->nb = nb;
-    msg->datalen = datalen;
+    msg->numfil = ntohs(oct[0]);
+    msg->nb = ntohs(oct[1]);
+    msg->datalen = (oct[2]);
 
     return 0;
 
@@ -144,7 +135,10 @@ msg_client * tcp_to_msgclient(int sockfd) {
 
     }
     
-    if(lire_header_until_datalen(sockfd, ret) < 0) return NULL;
+    lire_header_until_datalen(sockfd, ret);
+    if(ret->datalen < 0) return NULL;
+    //Cas où il n'y pas de DATA (Recup n billets par exemple)
+    if(ret->datalen == 0) return ret;
 
     if(lire_data_depuistcp(sockfd, ret, ret->datalen) < 0) return NULL;
 
@@ -185,7 +179,7 @@ u_int16_t * msg_client_to_send(msg_client struc){
     msg[2] = htons(struc.nb);
 
     //DATALEN | DATA[0]
-    msg[3] = htons( ((int)struc.data[0] << 8) + struc.datalen );
+    msg[3] = (u_int16_t)( ((int)struc.data[0] << 8) + struc.datalen );
     
     //DATA restant
     int data_pointer = 1;
@@ -194,7 +188,7 @@ u_int16_t * msg_client_to_send(msg_client struc){
             char car1 = ( data_pointer < strlen(struc.data)) ? struc.data[data_pointer] : '#';
             char car2 = ( data_pointer+1 < strlen(struc.data)) ? struc.data[data_pointer+1] : '#';
 
-            msg[i] = htons(((int)car2 << 8) + (int)car1);
+            msg[i] = (u_int16_t)(((int)car2 << 8) + (int)car1);
             
     }
     return msg; 
