@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include<sys/stat.h>
 #include <fcntl.h> 
+#include "msg_multicast.h"
 
 #include "serveur.h"
 
@@ -184,7 +185,12 @@ void * communication_client(void * arg_base_serveur) {
             break;
         //l'utilisateur veut s'abonner à un fil.
         case 4 :
-            abonner_fil(); 
+            fil * f;
+            if ((f = get_fil_id(base_serv->liste_fils, msg_client->numfil)) == NULL){
+                envoi_erreur_client(sockcli);
+            } else {
+                abonner_fil(f, msg_client, sockcli); 
+            }
             close(sockcli);
             break;
         //L'utilisateur veut envoyer un fichier.
@@ -377,8 +383,18 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
 
 }
 
-void abonner_fil() {
+void abonner_fil(fil * f, msg_client * msg_client, int sockcli) {
+    if(!f->is_multicast){
+        //ACTIVER LE MULTICAST POUR F
+    }
+    msg_demande_abo reponse = { .codereq = msg_client->codereq, .id = msg_client->id, .nb = PORT_MULTICAST, .numfil = msg_client->numfil, .ip = f->multicast_addr};
+    u_int16_t * to_snd = msg_abo_to_tcp(reponse);
 
+    if ( (send(sockcli, to_snd, SIZE_MSG_ABO, 0)) < 0){
+        perror("Erreur send abonnement\n ");
+    }
+
+    free(to_snd);
 }
 
 

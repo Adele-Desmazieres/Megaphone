@@ -17,6 +17,8 @@ typedef struct fil {
     int id;
     int nb_de_msg;
     billet * premier_msg;
+    int is_multicast;
+    char * multicast_addr;
 
     fil * suiv;
     
