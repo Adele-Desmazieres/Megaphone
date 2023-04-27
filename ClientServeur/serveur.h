@@ -4,6 +4,7 @@
 #include "../MessageStruct/msg_client.h"
 #include "../MessageStruct/msg_serveur.h"
 #include "bdd_serveur.h"
+#include "../UDP/liste_paquets.h"
 
 typedef struct base_serveur {
     user_list * liste_uti;
