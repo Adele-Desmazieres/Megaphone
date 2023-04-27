@@ -15,6 +15,7 @@
 
 #define PORT 2121
 #define SIZE_MSG 512
+#define TAILLE_MSG_REP 6
 //Valeur à part car modifiables à guises
 #define PORT_UDP 2121
 #define BUF_SIZE_UDP 512
@@ -217,7 +218,7 @@ void envoi_erreur_client(int sockcli) {
     msg_serveur message_erreur = {31, 0, 0, 0};
     uint16_t * msg_reponse = msg_serveur_to_send(message_erreur);
 
-    int snd = send(sockcli, msg_reponse, 512, 0);
+    int snd = send(sockcli, msg_reponse, TAILLE_MSG_REP, 0);
     if (snd <= 0){
         perror("Erreur envoi réponse\n");
     }
@@ -228,10 +229,11 @@ void envoi_erreur_client(int sockcli) {
 void envoie_reponse_client(int sockcli, msg_serveur reponse_serveur) {
     uint16_t * msg_reponse = msg_serveur_to_send(reponse_serveur);
 
-    int snd = send(sockcli, msg_reponse, 512, 0);
+    int snd = send(sockcli, msg_reponse, TAILLE_MSG_REP, 0);
     if (snd <= 0){
         perror("Erreur envoi réponse\n");
     }
+
 
     free(msg_reponse);
 }
@@ -401,47 +403,43 @@ int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, u
     struct sockaddr_in6 adrclient;
     socklen_t sizeclient = sizeof(adrclient);
 
-    //On créé un fichier
-    int fd = open("fichier_recu.txt", O_CREAT | O_WRONLY | O_TRUNC, 0640);
-    if (fd == -1) {
-        perror("open");
+    //On créé la liste qui va pouvoir stocker tous les paquets reçus.
+    liste_paquets * liste_paq = malloc(sizeof(liste_paquets));
+    if (liste_paq == NULL) return -1;
+
+    int taille_msg_udp = sizeof(u_int16_t) * (4 + (512)/2);
+    u_int16_t buff[taille_msg_udp];
+    int r = taille_msg_udp;
+
+    int nb_paquets = 0;
+    int num_dernier_paq = -1;
+
+    //Tant que r vaut la taille d'un msg udp on continue de recevoir des données, 
+    //sinon c'est que l'on a récupéré le dernier paquet.
+    while(num_dernier_paq == -1 || nb_paquets < num_dernier_paq) {
+        memset(buff, 0, taille_msg_udp);
+        r = recvfrom(sock, buff, taille_msg_udp, 0, (struct sockaddr *) &adrclient, &sizeclient);
+        if (r < 0) {
+            perror("recv ");
+            free_liste_paquets(liste_paq);
+            close(sock);
+            return -1;
+        }
+        paquet * paq = udp_to_paquet(buff); 
+        push_paquet(liste_paq, paq);  
+        if (r != 512) num_dernier_paq = paq -> numbloc;
+        nb_paquets += 1;
+    }
+
+    //On écrit enfin dans le fichier toute la liste des paquets.s
+    r = ecrire_dans_fichier_udp("fichier_recu.txt", liste_paq);
+    if (r == -1) {
         close(sock);
         return -1;
     }
 
-    lseek(fd, 0, SEEK_SET);
-    char buffer[BUF_SIZE_UDP + 1];
-    memset(buffer, 0, BUF_SIZE_UDP + 1);
-
-    int r = recvfrom(sock, buffer, BUF_SIZE_UDP + 1, 0, (struct sockaddr *) &adrclient, &sizeclient);
-    if (r < 0) {
-        perror("recv "); 
-        close(sock);
-        close(fd);
-        return -1;
-    }
-
-    while(r > 0) {
-        r = write(fd, buffer, strlen(buffer));
-        if (r < 0) {
-            perror("write ");
-            close(fd);
-            close(sock);
-            return -1;
-        }
-
-        memset(buffer, 0, BUF_SIZE_UDP + 1);
-        r = recvfrom(sock, buffer, BUF_SIZE_UDP + 1, 0, (struct sockaddr *) &adrclient, &sizeclient);
-        if (r < 0) {
-            perror("recv "); 
-            close(fd);
-            close(sock);
-            return -1;
-        }
-    }
-
+    free(liste_paq);
     close(sock);
-    close(fd);
 
     //CONVERTIR NOM DU FICHIER + ESPACE + SA TAILLE
     char taille_nom_fic[5];

@@ -1,6 +1,11 @@
 #ifndef INTERPRETEUR
 #define INTERPRETEUR
 
+#include "client.h"
+#include "../MessageStruct/msg_client.h"
+#include "../MessageStruct/msg_serveur.h"
+#include "../UDP/liste_paquets.h"
+
 int inscription_ou_debut_session(int *userid);
 int interpreteur_utilisateur(int *userid);
 int inscription(int *userid);

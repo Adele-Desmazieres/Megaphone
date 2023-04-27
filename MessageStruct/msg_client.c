@@ -49,7 +49,6 @@ msg_client* tcp_to_msg_clientreq(int sockfd){
     oct[0] = ntohs(oct[0]);
     int id = (oct[0] >> 5);
     int codereq = oct[0] - ((id) << 5);
-    //printf("TEST2 %d %d\n", id, codereq);
 
     return msg_client_constr(codereq,id,0,0,0,NULL, (codereq == 1));
 
