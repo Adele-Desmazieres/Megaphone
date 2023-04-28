@@ -406,8 +406,9 @@ int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, u
     //On créé la liste qui va pouvoir stocker tous les paquets reçus.
     liste_paquets * liste_paq = malloc(sizeof(liste_paquets));
     if (liste_paq == NULL) return -1;
+    liste_paq -> first = NULL;
 
-    int taille_msg_udp = sizeof(u_int16_t) * (4 + (512)/2);
+    int taille_msg_udp = sizeof(u_int16_t) * (2 + (512)/2);
     u_int16_t buff[taille_msg_udp];
     int r = taille_msg_udp;
 
@@ -425,9 +426,17 @@ int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, u
             close(sock);
             return -1;
         }
-        paquet * paq = udp_to_paquet(buff); 
+        printf("R : %d\n", r);
+        printf("Size of r : %ld\n", sizeof(buff));
+        paquet * paq = udp_to_paquet(buff);
+        if (paq == NULL) {
+            perror("paq ");
+            free_liste_paquets(liste_paq);
+            close(sock);
+            return -1;
+        }
         push_paquet(liste_paq, paq);  
-        if (r != 512) num_dernier_paq = paq -> numbloc;
+        num_dernier_paq = paq -> numbloc;
         nb_paquets += 1;
     }
 
@@ -449,12 +458,12 @@ int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, u
     //du int fichier puis du charactère \0.
     size_t taille_texte_total = strlen(taille_nom_fic) + 1 + strlen(msg_client -> data) + 1;
     char contenu_billet[taille_texte_total + 1];
+    memset(contenu_billet, '\0', taille_texte_total + 1);
 
     //On recopie le nom du fichier, puis on ajoute un espace puis on ajoute la taille du fichier.
     strncpy(msg_client -> data, contenu_billet, strlen(msg_client -> data));
     contenu_billet[ msg_client -> datalen + 1 ] = ' ';
     strncpy(taille_nom_fic, contenu_billet + msg_client -> datalen + 2, strlen(taille_nom_fic));
-    contenu_billet[taille_texte_total - 1] = '\0';
 
     poster_billet(msg_client, liste_fils, liste_utili, contenu_billet);
     

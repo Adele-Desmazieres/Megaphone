@@ -30,7 +30,7 @@ paquet * paquet_constr(int codereq, int id, int numbloc, char * data, paquet * p
 
 u_int16_t * paquet_to_udp(paquet paq) {
     //Taille: 6 octets si inscription sinon, dépend de la taille du texte
-    u_int16_t * msg = malloc(sizeof(u_int16_t) * (4 + (SIZE_PAQ) /2) );
+    u_int16_t * msg = malloc(sizeof(u_int16_t) * (2 + strlen(paq.data)/2) );
     if (msg == NULL) return NULL;
 
     //ENTETE
@@ -42,10 +42,10 @@ u_int16_t * paquet_to_udp(paquet paq) {
     msg[1] = htons(paq.numbloc);
 
     //DATA
-    for (int i = 2; i < SIZE_PAQ; i += 2) {
-        //En cas de dépassement, on remplit de #
-        char car1 = ( i < strlen(paq.data)) ? paq.data[i] : '\0';
-        char car2 = ( i+1 < strlen(paq.data)) ? paq.data[i+1] : '\0';
+    for (int i = 2; i - 2 < strlen(paq.data); i += 2) {
+        //On part de 2 pour msg mais de paq.data[i - 2] car on veut partir de 0.
+        char car1 = paq.data[i - 2];
+        char car2 = paq.data[i - 2 +1];
 
         msg[(i/2) + 1] = (u_int16_t)(((int)car2  << 8) + (int)car1);
     }
@@ -65,13 +65,25 @@ paquet * udp_to_paquet(uint16_t * msg) {
     int numbloc = ntohs(msg[1]);
 
     //DATA
-    char * data = malloc(SIZE_PAQ);
-    if (data == NULL) return NULL;
-    memset(data, '\0', SIZE_PAQ);
 
-    int r = read(0, msg[2], 512);
-    //strncpy(data, msg[2], strlen(msg[2]));
-    memcpy(data, msg[2], r);
+    char tmp[512];
+    memset(tmp, '\0', 512);
+
+    printf("ICI\n");
+
+    //On part de 0 pour buff mais de msg + 2 car on veut partir de 2.
+    for (int i = 0; i + 2 < 10; i += 2) {
+        tmp[i + 1] = (char) (msg[2 + i] >> 8);
+        tmp[i] = (char) (msg[2 + i]);
+        printf("%c %c\n", tmp[i], tmp[i+1]);
+    }
+
+    char * data = malloc(strlen(tmp) + 1);
+    if (data == NULL) return NULL;
+    memset(data, '\0', strlen(tmp) + 1);
+    strncpy(data, tmp, strlen(tmp));
+
+    printf("DATA : %s\n", data);
 
     return paquet_constr(codereq, id, numbloc, data, NULL, NULL);
 }
