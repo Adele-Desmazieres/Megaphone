@@ -7,6 +7,8 @@
 #define MULTICAST_INTERFACE "wlp3s0"
 #define PORT_MULTICAST 8686
 
+#define FIRST_MULTICAST_IP "ff12:0000:0000:0000:0000:0000:0000:0000"
+
 #include <arpa/inet.h>
 
 typedef struct msg_demande_abo{
@@ -28,6 +30,8 @@ typedef struct msg_notif{
 
 u_int16_t * msg_notif_to_udp(msg_notif msg);
 msg_notif * udp_to_msg_notif(u_int16_t * oct);
+
+char * incr_ip(char * ip);
 
 
 

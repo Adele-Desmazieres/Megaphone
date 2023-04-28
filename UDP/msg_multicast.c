@@ -4,7 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "bdd_serveur.h"
+#include <ctype.h>
+#include "../ClientServeur/bdd_serveur.h"
 
 u_int16_t * msg_abo_to_tcp(msg_demande_abo msg){
 
@@ -64,7 +65,7 @@ msg_demande_abo * tcp_to_msg_abo(int sockfd){
     struct in6_addr adr;
     memcpy(adr.s6_addr, ip_bin, 16);
 
-    ret->ip = malloc(sizeof(char) * 40); //???
+    ret->ip = malloc(sizeof(char) * 40);
 
     inet_ntop(AF_INET6, &adr, ret->ip, 40);
 
@@ -131,6 +132,48 @@ void free_msg_notif(msg_notif * msg){
     free(msg);
 }
 
+char incr_hexchar(char src){
+    if (isdigit(src)){
+        if(src - '0' == 9) return 'a';
+        return ((src - '0') + 1) + '0';
+    }
+    switch(src){
+        case 'a' : return 'b';
+        case 'b' : return 'c';
+        case 'c' : return 'd';
+        case 'd' : return 'e';
+        case 'e' : return 'f';
+        case 'f' : return '0';
+        default :
+            printf("Erreur de char pour IPv6 \n");
+            return 0;
+    }
+}
+
+char * incr_ip(char * ip){
+
+    char * ret = malloc(40);
+    memcpy(ret, ip, 40);
+
+    int char_pos = strlen(ip) - 1;
+    while(ip[char_pos] == ret[char_pos]){
+
+        if(char_pos <= 4) goto error;
+
+        switch(ret[char_pos]){
+            case ':' : char_pos--; break;
+            case 'f' : ret[char_pos--] = '0'; break;
+            default :
+                if (!isalnum(ret[char_pos])) goto error;
+                ret[char_pos] = incr_hexchar(ret[char_pos]);
+        }
+    }
+    return ret;
+    error :
+        free(ret); return NULL;
+
+}
+
 /*
 int main(void){
     msg_notif test = {.codereq = 1, .id = 0, .numfil = 0, .pseudo = "LUZog", .data = "salu"};
@@ -141,5 +184,9 @@ int main(void){
 
 
     free_msg_notif(test2);
+
+
+
+    printf("Ip incr : %s", incr_ip("ff12:ffff:ffff:ffff:ffff:ffff:ffff:ffff"));
 }
 */

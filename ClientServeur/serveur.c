@@ -8,9 +8,9 @@
 #include <netdb.h>
 #include <stdbool.h>
 #include <pthread.h>
-#include<sys/stat.h>
+#include <sys/stat.h>
 #include <fcntl.h> 
-#include "msg_multicast.h"
+#include "../UDP/msg_multicast.h"
 
 #include "serveur.h"
 
@@ -32,6 +32,8 @@ base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int sockli) 
     ret->liste_uti = ul;
     ret->liste_fils = lf;
     ret->socketclient = sockli;
+    ret->last_used_multicast_ip = malloc(40);
+    memcpy(ret->last_used_multicast_ip, FIRST_MULTICAST_IP, 40);
 
     return ret;
 }
@@ -185,11 +187,12 @@ void * communication_client(void * arg_base_serveur) {
             break;
         //l'utilisateur veut s'abonner à un fil.
         case 4 :
-            fil * f;
+            //Ce point virgule est nécessaire apparemment
+            ; fil * f = NULL;
             if ((f = get_fil_id(base_serv->liste_fils, msg_client->numfil)) == NULL){
                 envoi_erreur_client(sockcli);
             } else {
-                abonner_fil(f, msg_client, sockcli); 
+                abonner_fil(f, msg_client, sockcli, base_serv); 
             }
             close(sockcli);
             break;
@@ -274,6 +277,18 @@ int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * 
         //Le fil que l'utilisateur a voulu selectionner n'existe pas.
         if (fil_poster == NULL) return -1;
         ajouter_billet(fil_poster, username, contenu);
+
+        //Pour le multicast, on envoie une notif si le fil est en abonnement
+        if (fil_poster->is_multicast){
+            msg_notif to_snd = { .codereq = 4, .id = 0, .numfil = fil_poster->id, .pseudo = username, .data = contenu};
+            u_int16_t * buf = msg_notif_to_udp(to_snd);
+
+            if ((sendto(fil_poster->multicast_sockfd, buf, SIZE_MSG_NOTIF, 0, (struct sockaddr *)fil_poster->sockopt, sizeof(struct sockaddr_in6))) < 0){
+                perror("Erreur notification @ poster_billet \n");
+            }
+
+            free(buf);
+        }
     }
 
     return num_fil;
@@ -383,9 +398,43 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
 
 }
 
-void abonner_fil(fil * f, msg_client * msg_client, int sockcli) {
+void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * bs) {
     if(!f->is_multicast){
         //ACTIVER LE MULTICAST POUR F
+
+        f->multicast_sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
+        if (f->multicast_sockfd < 0){
+            perror("SOCK @ abonner_fil \n");
+        }
+
+        //On incrémente l'ip pour en avoir une différente pour chaque fil en multicast
+        f->multicast_addr = malloc(40);
+        char * new_ip = incr_ip(bs->last_used_multicast_ip);
+        memcpy(bs->last_used_multicast_ip, new_ip, 40);
+        memcpy(f->multicast_addr, new_ip, 40);
+        free(new_ip);
+
+        int ifindex = 0;
+        if(setsockopt(f->multicast_sockfd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifindex, sizeof(ifindex))){
+            perror("erreur option socket multicast \n");
+        }
+
+        int reuse = 1;
+        if(setsockopt(f->multicast_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse))){
+            perror("erreur option socket multicast \n");
+        }
+
+        struct sockaddr_in6 grsock = {0};
+        grsock.sin6_family = AF_INET6;
+        inet_pton(AF_INET6, f->multicast_addr, &grsock.sin6_addr);
+        grsock.sin6_port = htons(PORT_MULTICAST);
+
+
+        f->sockopt = malloc(sizeof(struct sockaddr_in6));
+        memcpy(f->sockopt, &grsock, sizeof(grsock));
+
+        f->is_multicast = 1;
+
     }
     msg_demande_abo reponse = { .codereq = msg_client->codereq, .id = msg_client->id, .nb = PORT_MULTICAST, .numfil = msg_client->numfil, .ip = f->multicast_addr};
     u_int16_t * to_snd = msg_abo_to_tcp(reponse);

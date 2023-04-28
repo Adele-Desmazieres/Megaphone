@@ -52,8 +52,9 @@ fil * fil_constr(char * auteur, char * texte){
     ret->suiv = NULL;
 
     ret->is_multicast = 0;
-    ret->multicast_addr = malloc(40);
-    memcpy(ret->multicast_addr, "", 1);
+    ret->multicast_sockfd = -1;
+    ret->multicast_addr = NULL;
+    ret->sockopt = NULL;
 
     printf("TEXTE DU BILLET : %s\n", texte);
 

@@ -69,9 +69,9 @@ paquet * udp_to_paquet(uint16_t * msg) {
     if (data == NULL) return NULL;
     memset(data, '\0', SIZE_PAQ);
 
-    int r = read(0, msg[2], 512);
+    int r = read(0, msg+2, 512);
     //strncpy(data, msg[2], strlen(msg[2]));
-    memcpy(data, msg[2], r);
+    memcpy(data, msg+2, r);
 
     return paquet_constr(codereq, id, numbloc, data, NULL, NULL);
 }

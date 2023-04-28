@@ -17,7 +17,10 @@ typedef struct fil {
     int id;
     int nb_de_msg;
     billet * premier_msg;
+    
     int is_multicast;
+    int multicast_sockfd;
+    struct sockaddr_in6 * sockopt;
     char * multicast_addr;
 
     fil * suiv;
