@@ -18,4 +18,8 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port);
 int recevoir_port_udp();
 int poster_fichier_client(int *userid);
 
+
+int abonnement_fil(int userid);
+void * thread_notifs(void * args);
+
 #endif

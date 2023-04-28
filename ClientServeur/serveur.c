@@ -21,7 +21,11 @@
 #define PORT_UDP 2121
 #define BUF_SIZE_UDP 512
 
+char * last_used_multicast_ip = FIRST_MULTICAST_IP;
+
 int main(int argc, char **argv) {
+    last_used_multicast_ip = malloc(40);
+    memcpy(last_used_multicast_ip, FIRST_MULTICAST_IP, 40);
     return creation_serveur();
 }
 
@@ -32,8 +36,6 @@ base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int sockli) 
     ret->liste_uti = ul;
     ret->liste_fils = lf;
     ret->socketclient = sockli;
-    ret->last_used_multicast_ip = malloc(40);
-    memcpy(ret->last_used_multicast_ip, FIRST_MULTICAST_IP, 40);
 
     return ret;
 }
@@ -409,8 +411,8 @@ void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * b
 
         //On incrémente l'ip pour en avoir une différente pour chaque fil en multicast
         f->multicast_addr = malloc(40);
-        char * new_ip = incr_ip(bs->last_used_multicast_ip);
-        memcpy(bs->last_used_multicast_ip, new_ip, 40);
+        char * new_ip = incr_ip(last_used_multicast_ip);
+        memcpy(last_used_multicast_ip, new_ip, 40);
         memcpy(f->multicast_addr, new_ip, 40);
         free(new_ip);
 
@@ -426,6 +428,7 @@ void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * b
 
         struct sockaddr_in6 grsock = {0};
         grsock.sin6_family = AF_INET6;
+        printf("Adresse IP de multicast envoyée : %s\n", f->multicast_addr);
         inet_pton(AF_INET6, f->multicast_addr, &grsock.sin6_addr);
         grsock.sin6_port = htons(PORT_MULTICAST);
 

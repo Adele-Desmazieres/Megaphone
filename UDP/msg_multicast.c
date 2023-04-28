@@ -12,7 +12,7 @@ u_int16_t * msg_abo_to_tcp(msg_demande_abo msg){
     u_int16_t * ret = malloc(SIZE_MSG_ABO);
     if(ret == NULL) perror(" Erreur malloc @ msg_abo_to_tcp\n");
 
-    //ENTETE
+    //printf("Adresse de multicast envoyée : %s \n codereq? %d \n id? %d \n numfil? %d\n nb (port)? %d\n", msg.ip, msg.codereq, msg.id, msg.numfil, msg.nb)
     //CODEREQ | ID
     ret[0] = htons((msg.id << 5) + msg.codereq);
 
@@ -25,11 +25,7 @@ u_int16_t * msg_abo_to_tcp(msg_demande_abo msg){
     memset(&adr,0, sizeof(adr));
     inet_pton(AF_INET6, msg.ip, &adr);
 
-
-    //Potentiellement faux...
-    for(int i = 0; i < 16; i+=2){
-        memcpy((ret + 3 + i), adr.s6_addr+(15 - i), 2);
-    }
+    memcpy(ret + 3, &adr, 16);
 
     return ret;
 
@@ -40,34 +36,37 @@ msg_demande_abo * tcp_to_msg_abo(int sockfd){
     msg_demande_abo * ret = malloc(sizeof(msg_demande_abo));
     if(ret == NULL) perror("Erreur malloc @ tcp_to_msg_abo \n");
 
-    u_int16_t oct[SIZE_MSG_ABO/2];
-    memset(oct, 0, SIZE_MSG_ABO);
-
-    if (recv(sockfd, oct, SIZE_MSG_ABO, 0) < 0){
+    u_int16_t oct1[1] = {0};
+    if (recv(sockfd, oct1, 2, 0) < 0){
         perror("recv @ tcp_to_msg_abo \n");
     }
 
-    oct[0] = ntohs(oct[0]);
-    ret->id = (oct[0] >> 5);
-    ret->codereq = oct[0] - ((ret->id) << 5);
+    oct1[0] = ntohs(oct1[0]);
+    ret->id = (oct1[0] >> 5);
+    ret->codereq = oct1[0] - ((ret->id) << 5);
 
-    ret->numfil = ntohs(oct[1]);
-    ret->nb = ntohs(oct[2]);
+    if (ret->codereq == 31) return ret;
 
-    //C'est une dinguerie mais askip c'est ça
-    uint8_t ip_bin[16] = {0};
+    u_int16_t oct[(SIZE_MSG_ABO/2) - 1];
+    memset(oct, 0, SIZE_MSG_ABO - 2);
 
-    for(int i = 0; i < 8; i++){
-        //A remettre dans le bon ordre
-        memcpy(ip_bin+i*2, (oct + 3 + (8 - i)), 2);
+    if (recv(sockfd, oct, SIZE_MSG_ABO - 2, 0) < 0){
+        perror("recv @ tcp_to_msg_abo \n");
     }
 
+
+    ret->numfil = ntohs(oct[0]);
+    ret->nb = ntohs(oct[1]);
+
     struct in6_addr adr;
-    memcpy(adr.s6_addr, ip_bin, 16);
+    memcpy(&adr, oct+2, 16);  
 
     ret->ip = malloc(sizeof(char) * 40);
 
     inet_ntop(AF_INET6, &adr, ret->ip, 40);
+
+    //printf("Adresse de multicast reçue : %s \n codereq? %d \n id? %d \n numfil? %d\n nb (port)? %d\n", ret->ip, ret->codereq, ret->id, ret->numfil, ret->nb);
+
 
     return ret;
 }
@@ -187,6 +186,7 @@ int main(void){
 
 
 
-    printf("Ip incr : %s", incr_ip("ff12:ffff:ffff:ffff:ffff:ffff:ffff:ffff"));
+    printf("Ip incr : %s", incr_ip("ff12:0000:0000:0000:0000:0000:0000:0001"));
 }
 */
+

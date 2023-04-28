@@ -10,7 +10,6 @@ typedef struct base_serveur {
     user_list * liste_uti;
     liste_fils * liste_fils;
     int socketclient;
-    char * last_used_multicast_ip;
 } base_serveur;
 
 base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int sockli);
