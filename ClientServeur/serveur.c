@@ -386,7 +386,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
 
             //On transforme le billet actuel en message à envoyer
             billet actuel = billets_pour_fil_actuel[j];
-            msg_billet_envoi a_envoyer = { tmp->id, strlen(actuel.texte), tmp->premier_msg->auteur, actuel.auteur, actuel.texte};
+            msg_billet_envoi a_envoyer = { tmp->id+1, strlen(actuel.texte), tmp->premier_msg->auteur, actuel.auteur, actuel.texte};
             uint16_t * msg_a_envoyer = msg_billet_to_send(a_envoyer);
 
             //On l'envoie

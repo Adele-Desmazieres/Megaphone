@@ -778,19 +778,13 @@ int get_n_billets(int userid){
     for(int i = 0; i < infos_reponse.nb; i++){
 
         msg_billet_envoi * billet_recu = tcp_to_msgbillet(sockfd);
-        printf("Fil %d initié par %s \n %s dit \' %s \' \n\n", billet_recu->numfil+1, billet_recu->origine, billet_recu->pseudo, billet_recu->data);
+        printf("Fil %d initié par %s \n %s dit \' %s \' \n\n", billet_recu->numfil, billet_recu->origine, billet_recu->pseudo, billet_recu->data);
         free(billet_recu->data);
         free(billet_recu->pseudo);
         free(billet_recu->origine);
         free(billet_recu);
 
-
     }
 
     return 0;
-
-
-
-
-
 }
