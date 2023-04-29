@@ -268,7 +268,7 @@ int interpreteur_utilisateur(int *userid)
                 break;
 
             case 3: // demander la liste des n derniers billets
-
+                get_n_billets(*userid);
                 break;
 
             case 4: // s'abonner à un fil
@@ -666,7 +666,8 @@ int abonnement_fil(int userid){
         perror("Echec realloc @ abonnement_fil\n");
     }
     memcpy(notrepoll + (*tailledepoll), &poll_specifique, sizeof(struct pollfd));
-    *tailledepoll += 1;
+    int nouv_taille_poll = (*tailledepoll + 1);
+    memcpy(tailledepoll, &nouv_taille_poll, sizeof(int));
     pthread_mutex_unlock(&verrou);
 
     printf("Abonné avec succès au fil %d\n", infos_ip->numfil);
@@ -716,6 +717,79 @@ void * thread_notifs(void * args){
     }
 
     return NULL;
+}
+
+int get_n_billets(int userid){
+
+    int sockfd = connexion_6();
+    if(sockfd < 0){
+        perror("connexion_6 @ get_n_billets \n");
+    }
+
+    char *num_input;
+
+    printf("Entrez le numéro du fil duquel vous souhaitez récupérer les derniers messages (0 pour tous) > ");
+    num_input = getln();
+    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
+        printf("Veuillez entrer un numéro correct > ");
+        free(num_input);
+        num_input = getln();
+    }
+    int numfil = atoi(num_input);
+    free(num_input);
+
+    printf("Entrez le nombre de derniers messages que vous souhaitez récupérer (0 pour tous) > ");
+    num_input = getln();
+    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
+        printf("Veuillez entrer un numéro correct > ");
+        free(num_input);
+        num_input = getln();
+    }
+    int nb = atoi(num_input);
+    free(num_input);
+
+    msg_client requete = {.codereq = 3, .numfil = numfil, .id = userid, .nb = nb, .datalen = 0, .data = "", .is_inscript = 0};
+    u_int16_t * req_to_snd = msg_client_to_send(requete);
+
+    if( send(sockfd, req_to_snd, 7, 0) < 0){
+        perror("Erreur envoi requete @ get_n_billets\n");
+    }
+
+    free(req_to_snd);
+
+    u_int16_t * prem_reponse = malloc(SIZE_MSG_SERVEUR);
+    memset(prem_reponse, 0, SIZE_MSG_SERVEUR);
+    if( recv(sockfd, prem_reponse, SIZE_MSG_SERVEUR, 0) < 0){
+        perror("Erreur réception répone @ get_n_billets\n");
+    }
+
+    msg_serveur infos_reponse = tcp_to_msgserveur(prem_reponse);
+    free(prem_reponse);
+
+    if(infos_reponse.codereq == 31){
+        printf("Erreur envoyée par le serveur, vérifiez vos informations\n");
+        return -1;
+    }
+
+    if(numfil == 0){
+        printf("Il y a actuellement %d fils actifs sur le serveur\n", infos_reponse.numfil);
+    }
+
+    for(int i = 0; i < infos_reponse.nb; i++){
+
+        msg_billet_envoi * billet_recu = tcp_to_msgbillet(sockfd);
+        printf("Fil %d initié par %s \n %s dit \' %s \' \n\n", billet_recu->numfil+1, billet_recu->origine, billet_recu->pseudo, billet_recu->data);
+        free(billet_recu->data);
+        free(billet_recu->pseudo);
+        free(billet_recu->origine);
+        free(billet_recu);
+
+
+    }
+
+    return 0;
+
+
 
 
 

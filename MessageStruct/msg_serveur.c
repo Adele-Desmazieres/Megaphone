@@ -67,37 +67,19 @@ uint16_t * msg_billet_to_send(msg_billet_envoi struc){
 
     //NUMFIL
     ret[0] = htons(struc.numfil);
+    /*printf("Test numfil envoi: %d\n", struc.numfil);
+    printf("Test origine envoi : %s\n", struc.origine);
+    printf("Test pseudo envoi : %s\n", struc.pseudo);
+    printf("Test datalen envoi : %d\n", struc.datalen);*/
 
-    //ORIGINE
-    for (int i = 0; i < 10; i += 2) {
-            //En cas de dépassement, on remplit de #
-            char car1 = ( i < strlen(struc.origine)) ? struc.origine[i] : '#';
-            char car2 = ( i+1 < strlen(struc.origine)) ? struc.origine[i+1] : '#';
+    memcpy(ret + 1, struc.origine, 10);
 
-            ret[(i/2) + 1] = (u_int16_t)(((int)car2  << 8) + (int)car1);
-    }
-
-    //PSEUDO
-    for (int i = 0; i < 10; i += 2) {
-            //En cas de dépassement, on remplit de #
-            char car1 = ( i < strlen(struc.pseudo)) ? struc.pseudo[i] : '#';
-            char car2 = ( i+1 < strlen(struc.pseudo)) ? struc.pseudo[i+1] : '#';
-
-            ret[(i/2) + 6] = (u_int16_t)(((int)car2  << 8) + (int)car1);
-    }
+    memcpy(ret + 6, struc.pseudo, 10);
 
     //DATA
     ret[11] = (u_int16_t)( ((int)struc.data[0] << 8) + struc.datalen );
 
-    //DATA restant
-    int data_pointer = 1;
-    for (int i = 12; data_pointer < strlen(struc.data); data_pointer+= 2, i++) {
-        //En cas de dépassement on remplit par des #, comme pour le pseudo
-            char car1 = ( data_pointer < strlen(struc.data)) ? struc.data[data_pointer] : '#';
-            char car2 = ( data_pointer+1 < strlen(struc.data)) ? struc.data[data_pointer+1] : '#';
-
-            ret[i] = (u_int16_t)(((int)car2 << 8) + (int)car1);
-    }
+    memcpy(ret + 12, struc.data+1, struc.datalen - 1);
 
     return ret;
 }
@@ -119,6 +101,8 @@ msg_billet_envoi * tcp_to_msgbillet(int sockfd){
 
     //NUMFIL
     ret->numfil = ntohs(oct[0]);
+    //printf("Test numfil : %d\n", ret->numfil);
+
 
     //ORIGINE
     char * origine = malloc(11);
@@ -130,6 +114,9 @@ msg_billet_envoi * tcp_to_msgbillet(int sockfd){
     if(recu <= 0) {
         return NULL;
     }
+
+    origine[10] = '\0';
+    //printf("Test origine : %s\n", origine);
 
     ret->origine = origine;
 
@@ -143,6 +130,7 @@ msg_billet_envoi * tcp_to_msgbillet(int sockfd){
     if(recu <= 0) {
         return NULL;
     }
+    pseudo[10] = '\0';
 
     ret->pseudo = pseudo;
 
@@ -177,5 +165,6 @@ msg_billet_envoi * tcp_to_msgbillet(int sockfd){
 
     ret->data = buf;
 
+    //printf("Test pseudo : %s\n", ret->pseudo);
     return ret;
 }

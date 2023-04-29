@@ -304,7 +304,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
     int nb;
 
     //SI UN SEUL FIL
-    if(numfil != 0){
+    if(msg_client->numfil != 0){
 
         nb = (msg_client->nb > get_fil_id (liste_fils, numfil)->nb_de_msg || msg_client->nb == 0) ? ( get_fil_id(liste_fils , numfil) -> nb_de_msg ) : msg_client->nb ;
 
@@ -312,7 +312,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
         msg_serveur prem_reponse = {msg_client->codereq, msg_client->id, numfil, nb};
         uint16_t * prem_reponse_a_envoyer = msg_serveur_to_send(prem_reponse);
 
-        int snd = send(sockcli, prem_reponse_a_envoyer, 512, 0);
+        int snd = send(sockcli, prem_reponse_a_envoyer, 6, 0);
         if (snd <= 0){
             perror("Erreur envoi réponse\n");
         }
@@ -331,7 +331,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
             uint16_t * msg_a_envoyer = msg_billet_to_send(a_envoyer);
 
             //On envoie le billet actuel
-            snd = send(sockcli, msg_a_envoyer, 512, 0);
+            snd = send(sockcli, msg_a_envoyer, 24 + (a_envoyer.datalen - 1) , 0);
             if (snd <= 0){
                 perror("Erreur envoi réponse\n");
             }
@@ -352,17 +352,24 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
     int nbr_billets[liste_fils-> nb_de_fils];
 
     //On parcourt la liste des fils pour récupérer le nombre réel de billets à envoyer selon le fil
+    nb = 0;
     fil * tmp = liste_fils->premier_fil;
     for(int i = 0; i < liste_fils->nb_de_fils; i++, tmp = tmp->suiv){
-        nbr_billets[i] = (msg_client -> nb > tmp->nb_de_msg) ? tmp->nb_de_msg : msg_client -> nb;
+        if(msg_client->nb == 0){
+            //printf("nb de message de tmp : %d \n", tmp->nb_de_msg);
+            nbr_billets[i] = tmp->nb_de_msg;
+        } else {
+            nbr_billets[i] = (msg_client -> nb > tmp->nb_de_msg) ? tmp->nb_de_msg : msg_client -> nb;
+        }
         nb += nbr_billets[i];
     }
+    //printf("NB: %d \n", nb);
 
     //On envoie le premier message annoncant le nombre de messages qui vont suivre
     msg_serveur prem_reponse = {msg_client->codereq, msg_client->id, numfil, nb};
     uint16_t * prem_reponse_a_envoyer = msg_serveur_to_send(prem_reponse);
 
-    int snd = send(sockcli, prem_reponse_a_envoyer, 512, 0);
+    int snd = send(sockcli, prem_reponse_a_envoyer, 6, 0);
     if (snd <= 0){
         perror("Erreur envoi réponse\n");
     }
@@ -383,7 +390,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
             uint16_t * msg_a_envoyer = msg_billet_to_send(a_envoyer);
 
             //On l'envoie
-            snd = send(sockcli, msg_a_envoyer, 512, 0);
+            snd = send(sockcli, msg_a_envoyer, 24 + (a_envoyer.datalen - 1), 0);
             if (snd <= 0){
                 perror("Erreur envoi réponse\n");
             }
