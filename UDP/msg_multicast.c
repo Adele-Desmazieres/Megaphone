@@ -76,7 +76,6 @@ u_int16_t * msg_notif_to_udp(msg_notif msg){
     u_int16_t * ret = malloc(SIZE_MSG_NOTIF);
     if(ret == NULL) perror(" malloc @ msg_notif_to_tcp \n");
 
-
     ret[0] = htons((msg.id << 5) + msg.codereq);
 
     ret[1] = htons(msg.numfil);
@@ -87,7 +86,6 @@ u_int16_t * msg_notif_to_udp(msg_notif msg){
 
     char data[20];
     memset(data, '\0', 20);
-
 
     memcpy(data, msg.data, 20);
 
@@ -106,8 +104,6 @@ msg_notif * udp_to_msg_notif(u_int16_t * oct){
     msg_notif * ret = (malloc (sizeof(msg_notif)));
     if(ret == NULL) perror("Erreur malloc @ tcp_to_msg_notif \n");
 
-
-
     u_int16_t trad = ntohs(oct[0]);
     ret->id = (trad >> 5);
     ret->codereq = trad - ((ret->id) << 5);
@@ -115,13 +111,11 @@ msg_notif * udp_to_msg_notif(u_int16_t * oct){
 
     ret->pseudo = malloc(10);
     memcpy(ret->pseudo, oct+2, 10);
-    printf("TEST\n");
 
     ret->data = malloc(20);
     memcpy(ret->data, oct+7, 20);
 
     return ret;
-
 
 }
 

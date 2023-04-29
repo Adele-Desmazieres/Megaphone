@@ -285,6 +285,8 @@ int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * 
             msg_notif to_snd = { .codereq = 4, .id = 0, .numfil = fil_poster->id, .pseudo = username, .data = contenu};
             u_int16_t * buf = msg_notif_to_udp(to_snd);
 
+            printf("SOCK OU ON ENVOIE : %d\n", fil_poster->multicast_sockfd);
+
             if ((sendto(fil_poster->multicast_sockfd, buf, SIZE_MSG_NOTIF, 0, (struct sockaddr *)fil_poster->sockopt, sizeof(struct sockaddr_in6))) < 0){
                 perror("Erreur notification @ poster_billet \n");
             }

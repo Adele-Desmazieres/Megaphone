@@ -649,6 +649,7 @@ int abonnement_fil(int userid){
     }
 
     struct ipv6_mreq group = {0};
+    printf("IPv6 reçue? %s \n", infos_ip->ip);
     inet_pton(AF_INET6, infos_ip->ip, &group.ipv6mr_multiaddr);
     group.ipv6mr_interface = 0;
 
@@ -658,9 +659,11 @@ int abonnement_fil(int userid){
 
     struct pollfd poll_specifique = {0};
     poll_specifique.fd = sock_multicast;
-    poll_specifique.fd = POLLIN;
+    poll_specifique.events = POLLIN;
 
+    printf("Hello2\n");
     pthread_mutex_lock(&verrou);
+
     notrepoll = realloc(notrepoll, sizeof(struct pollfd) * ( (*tailledepoll) + 1) );
     if (notrepoll == NULL){
         perror("Echec realloc @ abonnement_fil\n");
@@ -681,19 +684,19 @@ int abonnement_fil(int userid){
 void * thread_notifs(void * args){
 
     while(1){
-        
+
         pthread_mutex_lock(&verrou);
         if(*tailledepoll == 0){ pthread_mutex_unlock(&verrou); continue; }
         pthread_mutex_unlock(&verrou);
 
-
-        pthread_mutex_lock(&verrou);
-        if(poll(notrepoll, *tailledepoll, 5000) > 0){
-
-            printf("Hello\n");
+        if(poll(notrepoll, *tailledepoll, 5000) == 0) { /*pthread_mutex_unlock(&verrou);*/ continue; }
             for(int i = 0; i < *tailledepoll; i++ ){
+            printf("Hello : %d : %d\n", *tailledepoll, i);
 
-                struct pollfd actuel = notrepoll[i];
+                struct pollfd actuel = {0};
+                pthread_mutex_lock(&verrou);
+                actuel = notrepoll[i];
+                printf("SOCK ACTUEL = %d\n", actuel.fd);
                 if (actuel.revents & POLLIN){
                     //Alors ce descripteur est prêt pour la lecture;
 
@@ -704,15 +707,15 @@ void * thread_notifs(void * args){
 
                     msg_notif * msg_a_afficher = udp_to_msg_notif(buf);
 
-                    printf("Notif fil %d : %s - %s \n", msg_a_afficher->numfil, msg_a_afficher->data, msg_a_afficher->pseudo);
+                    printf("\nNotif fil %d : %s - %s \n", msg_a_afficher->numfil, msg_a_afficher->data, msg_a_afficher->pseudo);
+                    notrepoll[i].revents = 0;
 
                     free(msg_a_afficher->pseudo);
                     free(msg_a_afficher->data);
                     free(msg_a_afficher);                    
                 }
+                pthread_mutex_unlock(&verrou);
             }
-        }
-        pthread_mutex_unlock(&verrou);
 
     }
 
