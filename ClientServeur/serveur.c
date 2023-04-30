@@ -426,8 +426,6 @@ int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, u
             close(sock);
             return -1;
         }
-        printf("R : %d\n", r);
-        printf("Size of r : %ld\n", sizeof(buff));
         paquet * paq = udp_to_paquet(buff);
         if (paq == NULL) {
             perror("paq ");
@@ -435,8 +433,8 @@ int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, u
             close(sock);
             return -1;
         }
-        push_paquet(liste_paq, paq);  
-        num_dernier_paq = paq -> numbloc;
+        push_paquet(liste_paq, paq);
+        if (strlen(paq -> data) < 512) num_dernier_paq = paq -> numbloc;
         nb_paquets += 1;
     }
 
@@ -447,7 +445,6 @@ int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, u
         return -1;
     }
 
-    free(liste_paq);
     close(sock);
 
     //CONVERTIR NOM DU FICHIER + ESPACE + SA TAILLE

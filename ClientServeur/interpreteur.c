@@ -520,13 +520,17 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
         close(sock);
         return -1;
     }
-    char buff[BUF_SIZE];
-    memset(buff, '\0', BUF_SIZE);
-    int numero_paq = 0;
 
-    buff[0] = numero_paq;
+    //On récupère la taille du fichier.
+    struct stat st;
+    stat(file_path, &st);
+    int file_size = st.st_size;
 
-    int r = read(fd, buff, BUF_SIZE);
+    //On prend + 1 pour prendre en compte le symbole '\0' pour strlen
+    char read_buff[BUF_SIZE + 1];
+    memset(read_buff, '\0', BUF_SIZE + 1);
+
+    int r = read(fd, read_buff, BUF_SIZE);
     if (r < 0) { 
         perror("read ");
         close(sock);
@@ -538,26 +542,36 @@ int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
         return -1;
     }
 
+    int taille_msg_udp = sizeof(u_int16_t) * (2 + (512)/2);
     int numbloc = 0;
     while (r > 0) {
-        paquet paq = {5, *userid, numbloc, buff};
+        paquet paq = {5, *userid, numbloc, read_buff};
         u_int16_t * msg = paquet_to_udp(paq);
-        r = sendto(sock, msg, sizeof(msg), 0, (struct sockaddr *)&adrclient, len);
+        r = sendto(sock, msg, taille_msg_udp, 0, (struct sockaddr *)&adrclient, len);
         if (r < 0){
             perror("sendto ");
             close(sock);
             return -1;
         }
 
-        free(msg);
-
-        memset(buff, 0, BUF_SIZE);
-        r = read(fd, buff, BUF_SIZE);
+        memset(read_buff, 0, BUF_SIZE + 1);
+        r = read(fd, read_buff, BUF_SIZE);
         if (r < 0){ 
             perror("read ");
             close(sock);
             return -1; 
         }
+        numbloc += 1;
+        free(msg);
+    }   
+
+    //Si la taille du fichier est divisible par 512 on envoie un paquet vide.
+    if (file_size % 512 == 0) {
+        memset(read_buff, 0, BUF_SIZE + 1);
+        paquet paq = {5, *userid, numbloc, read_buff};
+        u_int16_t * msg = paquet_to_udp(paq);
+        r = sendto(sock, msg, taille_msg_udp, 0, (struct sockaddr *)&adrclient, len);
+        free(msg);
     }
 
     close(sock);

@@ -29,8 +29,11 @@ paquet * paquet_constr(int codereq, int id, int numbloc, char * data, paquet * p
 }
 
 u_int16_t * paquet_to_udp(paquet paq) {
-    //Taille: 6 octets si inscription sinon, dépend de la taille du texte
-    u_int16_t * msg = malloc(sizeof(u_int16_t) * (2 + strlen(paq.data)/2) );
+    int len_paq = strlen(paq.data);
+    if (len_paq % 2 != 0) len_paq += 1;
+
+    //Taille: 2 pour les 4 octets de id,codereq,numblock et le reste fait la taille du fichier.
+    u_int16_t * msg = malloc(sizeof(u_int16_t) * (2 + len_paq/2 ) );
     if (msg == NULL) return NULL;
 
     //ENTETE
@@ -44,8 +47,11 @@ u_int16_t * paquet_to_udp(paquet paq) {
     //DATA
     for (int i = 2; i - 2 < strlen(paq.data); i += 2) {
         //On part de 2 pour msg mais de paq.data[i - 2] car on veut partir de 0.
-        char car1 = paq.data[i - 2];
-        char car2 = paq.data[i - 2 +1];
+        //char car1 = paq.data[i - 2];
+        //char car2 = paq.data[i - 2 +1];
+
+        char car1 = ( i - 2 < strlen(paq.data)) ? paq.data[i - 2] : '\0';
+        char car2 = ( i - 2 +1 < strlen(paq.data)) ? paq.data[i - 2 +1] : '\0';
 
         msg[(i/2) + 1] = (u_int16_t)(((int)car2  << 8) + (int)car1);
     }
@@ -66,24 +72,26 @@ paquet * udp_to_paquet(uint16_t * msg) {
 
     //DATA
 
-    char tmp[512];
-    memset(tmp, '\0', 512);
+    //On prend une taille de 513 car si on a des données de taille 512 on veut ajouter '\0' à la fin
+    char tmp[513];
+    memset(tmp, '\0', 513);
 
-    printf("ICI\n");
+    int ind_char = 0;
+    int ind_mes = 2;
 
-    //On part de 0 pour buff mais de msg + 2 car on veut partir de 2.
-    for (int i = 0; i + 2 < 10; i += 2) {
-        tmp[i + 1] = (char) (msg[2 + i] >> 8);
-        tmp[i] = (char) (msg[2 + i]);
-        printf("%c %c\n", tmp[i], tmp[i+1]);
+    int n = sizeof(msg) - 2;
+
+    while(ind_char < 512 || ind_mes < n) {
+        tmp[ind_char + 1] = (char) (msg[ind_mes] >> 8);
+        tmp[ind_char] = (char) (msg[ind_mes]);
+        ind_char += 2;
+        ind_mes += 1;
     }
 
     char * data = malloc(strlen(tmp) + 1);
     if (data == NULL) return NULL;
     memset(data, '\0', strlen(tmp) + 1);
     strncpy(data, tmp, strlen(tmp));
-
-    printf("DATA : %s\n", data);
 
     return paquet_constr(codereq, id, numbloc, data, NULL, NULL);
 }
@@ -105,8 +113,8 @@ void push_paquet(liste_paquets * liste, paquet * paq) {
         liste -> first = paq;
     }
     else if (paq -> numbloc < liste -> first -> numbloc) {
-        liste -> first -> prev = paq;
         paq -> next = liste -> first;
+        liste -> first -> prev = paq;
 
         liste -> first = paq;
     }
@@ -115,9 +123,10 @@ void push_paquet(liste_paquets * liste, paquet * paq) {
         while (courant -> next != NULL && paq -> numbloc > courant -> numbloc) {
             courant = courant -> next;
         }
-        paq -> prev = courant -> prev;
-        paq -> next = courant;
-        courant -> prev = paq;
+        paq -> prev = courant;
+        paq -> next = courant -> next;
+        if (courant -> next != NULL) paq -> next -> prev = paq;
+        courant -> next = paq;
     }
 }
 
@@ -149,7 +158,7 @@ int ecrire_dans_fichier_udp(char * file_name, liste_paquets * liste_paq) {
     lseek(fd, 0, SEEK_SET);
 
     //Enfin on écrit tous les paquets dans le fichier.
-    paquet * courant = pop_paquet(liste_paq);
+    paquet * courant = liste_paq -> first;
     while (courant != NULL) {
         int r = write(fd, courant -> data, strlen(courant -> data));
         if (r < 0) {
@@ -159,11 +168,10 @@ int ecrire_dans_fichier_udp(char * file_name, liste_paquets * liste_paq) {
             return -1;
         }
 
-        paquet * suiv = courant -> next;
-        free_paquet(courant);
-        courant = suiv;
+        courant = courant -> next;
     }
 
+    free_liste_paquets(liste_paq);
     close(fd);
 
     return 0;
