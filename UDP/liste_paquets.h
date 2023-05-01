@@ -23,6 +23,8 @@ paquet * pop_paquet(liste_paquets * liste);
 void push_paquet(liste_paquets * liste, paquet * paq);
 void free_paquet(paquet * paq);
 void free_liste_paquets(liste_paquets * liste);
+int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, int port, char * file_name);
+int recevoir_donnees_fichier(int sock, char * file_name);
 int ecrire_dans_fichier_udp(char * file_name, liste_paquets * liste_paq);
 
 #endif

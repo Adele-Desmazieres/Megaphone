@@ -56,6 +56,7 @@ fil * get_fil_id(liste_fils * l, int numfil);
 void ajouter_billet(fil * f, char * auteur, char * texte);
 billet * get_n_derniers_billets(fil * f, int n);
 billet * get_n_derniers_billets_from_id(liste_fils * l ,int id, int n);
+int does_file_exist_fil(fil * f, char * file_name);
 void free_fil(fil * f);
 
 liste_fils * liste_fils_constr();

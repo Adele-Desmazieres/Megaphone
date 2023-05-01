@@ -255,11 +255,11 @@ int interpreteur_utilisateur(int *userid)
                 break;
 
             case 5: // poster un fichier
-                poster_fichier_client(userid);
+                envoyer_donnees_fichier_client(userid);
                 break;
 
             case 6: // telecharger un fichier
-
+                recevoir_donnees_fichier_client(userid);
                 break;
 
             case 7: // lister des commandes
@@ -386,7 +386,6 @@ int poster_billet_client(int *userid)
         return -1;
     }
     int msglen = n + ENTETE_LEN;
-    printf("msglen : %d\n", (msglen - 1)/2);
     int size_exchanged = send(sock, marray, msglen, 0);
     if (size_exchanged != msglen)
         goto error;
@@ -422,7 +421,7 @@ int poster_billet_client(int *userid)
     return -1;
 }
 
-int poster_fichier_client(int *userid) {
+int envoyer_donnees_fichier_client(int *userid) {
     char *str_input;
     char *num_input;
     int n;
@@ -466,7 +465,6 @@ int poster_fichier_client(int *userid) {
         return -1;
     }
     int msglen = n + ENTETE_LEN;
-    printf("msglen : %d\n", msglen);
     int size_exchanged = send(sock, marray, msglen, 0);
     if (size_exchanged != msglen)
         goto error;
@@ -490,8 +488,15 @@ int poster_fichier_client(int *userid) {
     printf("Numero de port serveur reçu : %d.\n", rep.nb);
     close(sock);
 
-    int r = envoyer_donnees_fichier(userid, str_input, rep.nb);
-    if (r == -1) goto error;
+    struct sockaddr_in6 adrudp;
+    memset(&adrudp, 0, sizeof(adrudp));
+
+    int sockudp = connexion_udp_6(&adrudp, rep.nb);
+    if (sockudp < 0) { perror("sock "); return 1; }
+
+    int r = envoyer_donnees_fichier(sockudp, adrudp, 5, rep.nb, str_input);
+    close(sockudp);
+    if (r == -1) { perror("Fichier mal envoyé"); return -1; }
     else printf("Fichier bien envoyé.\n");
 
     free(str_input);
@@ -506,76 +511,101 @@ int poster_fichier_client(int *userid) {
     return -1;
 }
 
-int envoyer_donnees_fichier(int *userid, char * file_path, int port) {
-    struct sockaddr_in6 adrclient;
-    memset(&adrclient, 0, sizeof(adrclient));
+int recevoir_donnees_fichier_client(int *userid) {
+    char *str_input;
+    char *num_input;
+    int n;
+
+    //On prend le numéro du fil dans lequel l'utilisateur veux poster le fichier.
+    printf("Entrez le numéro du fil sur lequel vous voulez votre fichier > ");
+    num_input = getln();
+    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
+        printf("Veuillez entrer un numéro correct > ");
+        free(num_input);
+        num_input = getln();
+    }
+    int numfil = atoi(num_input);
+    free(num_input);
+
+    //On prend le nom/chemin du fichier que l'on veut recuperer
+    printf("Entrez le nom du fichier que vous voulez recuperer > ");
+    str_input = getln();
+    n = strlen(str_input);
+
+    //On prend le nom/chemin du fichier ou l'on enverra les donnees
+    printf("Entrez le nom du fichier ou vous voulez ecrire les donnees > ");
+    char * recep_file = getln();
+
+    // On créé le message avec lendata le nombre de caractère du fichier et data le nom du fichier.
+    msg_client mstruct = {6, *userid, numfil, 2121, strlen(str_input), str_input, 0};
+    u_int16_t *marray = msg_client_to_send(mstruct);
+
+    // l'envoie
+    int sock = connexion_6();
+    if (sock == -1) { free(marray); return -1; }
     
-    int sock = connexion_udp_6(&adrclient, port);
-    if (sock < 0) { perror("sock "); return 1; }
-    socklen_t len = sizeof(adrclient);
+    int msglen = n + ENTETE_LEN;
+    int size_exchanged = send(sock, marray, msglen, 0);
+    if (size_exchanged != msglen)
+        goto error;
 
-    int fd = open(file_path, O_RDONLY, 0640);
-    if (fd == -1) {
-        perror("open");
-        close(sock);
+    // recoit la réponse
+    u_int16_t buff[3];
+    size_exchanged = recv(sock, buff, 6, 0);
+    if (size_exchanged != 6)
+        goto error;
+
+    // interprète la réponse
+    msg_serveur rep = tcp_to_msgserveur(buff);
+    if (rep.codereq != 6) { // échec du côté serveur
+        printf("Le fichier que vous vouliez prendre n'existe pas.\n");
+        free(marray);
+        free(str_input);
         return -1;
     }
 
-    //On récupère la taille du fichier.
-    struct stat st;
-    stat(file_path, &st);
-    int file_size = st.st_size;
-
-    //On prend + 1 pour prendre en compte le symbole '\0' pour strlen
-    char read_buff[BUF_SIZE + 1];
-    memset(read_buff, '\0', BUF_SIZE + 1);
-
-    int r = read(fd, read_buff, BUF_SIZE);
-    if (r < 0) { 
-        perror("read ");
-        close(sock);
-        return -1; 
-    }
-    else if (r == 0) {
-        printf("Le fichier que vous voulez envoyer est vide.\n");
-        close(sock);
-        return -1;
-    }
-
-    int taille_msg_udp = sizeof(u_int16_t) * (2 + (512)/2);
-    int numbloc = 0;
-    while (r > 0) {
-        paquet paq = {5, *userid, numbloc, read_buff};
-        u_int16_t * msg = paquet_to_udp(paq);
-        r = sendto(sock, msg, taille_msg_udp, 0, (struct sockaddr *)&adrclient, len);
-        if (r < 0){
-            perror("sendto ");
-            close(sock);
-            return -1;
-        }
-
-        memset(read_buff, 0, BUF_SIZE + 1);
-        r = read(fd, read_buff, BUF_SIZE);
-        if (r < 0){ 
-            perror("read ");
-            close(sock);
-            return -1; 
-        }
-        numbloc += 1;
-        free(msg);
-    }   
-
-    //Si la taille du fichier est divisible par 512 on envoie un paquet vide.
-    if (file_size % 512 == 0) {
-        memset(read_buff, 0, BUF_SIZE + 1);
-        paquet paq = {5, *userid, numbloc, read_buff};
-        u_int16_t * msg = paquet_to_udp(paq);
-        r = sendto(sock, msg, taille_msg_udp, 0, (struct sockaddr *)&adrclient, len);
-        free(msg);
-    }
-
+    // réussite
     close(sock);
-    close(fd);
+
+    struct sockaddr_in6 adrudp;
+    memset(&adrudp, 0, sizeof(adrudp));
+
+    int sockudp = connexion_udp_6(&adrudp, rep.nb);
+    if (sockudp < 0) { perror("sock "); return 1; }
     
+    int r = envoyer_serveur_udp_adr(adrudp, sock);
+    if (r == -1) { close(sockudp); perror("Fichier mal reçu"); return -1; }
+
+    r = recevoir_donnees_fichier(sockudp, recep_file);
+    if (r == -1) { perror("Fichier mal reçu");}
+    else printf("Fichier bien reçu.\n");
+
+    close(sockudp);
+    free(recep_file);
+    free(str_input);
+    free(marray);
+    return 0;
+
+    error:
+    printf("Erreur communication avec le serveur.\n");
+    free(marray);
+    free(str_input);
+    close(sock);
+    return -1;
+}
+
+int envoyer_serveur_udp_adr(struct sockaddr_in6 adrclient, int sock) {
+    char buffer[BUF_SIZE];
+    memset(buffer, 0, BUF_SIZE);
+    sprintf(buffer, "Envoi adrclient.");
+
+    int len = sizeof(adrclient);
+
+    //On envoie un message pour que le serveur puisse récuperer l'adresse du client
+    int env = sendto(sock, buffer, BUF_SIZE, 0, (struct sockaddr *)&adrclient, len);
+    if (env < 0){ perror("echec de sendto "); return -1; }
+
+    printf("APRES ENVOI\n");
+
     return 0;
 }

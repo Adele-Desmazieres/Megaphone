@@ -18,7 +18,7 @@ base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int sockli);
 int creation_serveur();
 
 //Créé un serveur UDP, renvoie 1 si raté.
-int connexion_udp();
+int connexion_udp(struct sockaddr_in6 sockaddr, int port);
 
 //Accepte les clients avec en parametre la socket serveur.
 int accepter_clients(int sockserv);
@@ -36,7 +36,8 @@ int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * 
 void liste_n_billets();
 void abonner_fil();
 int udp_envoi_port_client(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili);
-int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * file_name);
-void telecharger_fichier();
+int recevoir_donnees_fichier_serveur(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * file_name);
+int fichier_existe_dans_fil(msg_client * msg_client, liste_fils * liste_fils);
+int envoyer_donnees_fichier_serveur(int port, char * file_name);
 
 #endif

@@ -12,10 +12,9 @@ int inscription(int *userid);
 int debut_session(int *userid);
 int lister_commandes_en_session();
 int poster_billet_client(int *userid);
+int envoyer_donnees_fichier_client(int *userid);
+int recevoir_donnees_fichier_client(int *userid);
+int envoyer_serveur_udp_adr(struct sockaddr_in6 adrserv, int sock);
 
-int poster_fichier_client(int *userid);
-int envoyer_donnees_fichier(int *userid, char * file_path, int port);
-int recevoir_port_udp();
-int poster_fichier_client(int *userid);
 
 #endif
