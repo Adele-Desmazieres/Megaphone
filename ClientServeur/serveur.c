@@ -468,7 +468,7 @@ int fichier_existe_dans_fil(msg_client * msg_client, liste_fils * liste_fils) {
 }
 
 int envoyer_donnees_fichier_serveur(int port, char * file_name) {
-    struct sockaddr_in6 adrudp;
+/*     struct sockaddr_in6 adrudp;
     memset(&adrudp, 0, sizeof(adrudp));
 
     int sockudp = connexion_udp(adrudp, port);
@@ -478,17 +478,34 @@ int envoyer_donnees_fichier_serveur(int port, char * file_name) {
     struct sockaddr_in6 adrclient;
     socklen_t len = sizeof(adrclient);
     char buffer[BUF_SIZE];
-    memset(buffer, 0, BUF_SIZE);
+    memset(buffer, 0, BUF_SIZE); */
+
+    int sock = socket(PF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) return 1;
+
+    struct sockaddr_in adrserv;
+    memset(&adrserv, 0, sizeof(adrserv));
+    adrserv.sin_family = AF_INET;
+    adrserv.sin_port = htons(PORT);
+    adrserv.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    int r = bind(sock, (struct sockaddr *) &adrserv, sizeof(adrserv));
+    if (r < 0) { perror("bind "); return 1;}
+
+    char buffer[BUF_SIZE + 1];
+
+    struct sockaddr_in6 adrclient;
+    socklen_t len = sizeof(adrclient);
 
     printf("AVANT RECVFROM\n");
 
     while(1) {
-        int r = recvfrom(sockudp, buffer, BUF_SIZE, 0, (struct sockaddr *) &adrclient, &len);
+        int r = recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *) &adrclient, &len);
         if (r < 0) { perror("recv "); return -1; }
         break;
     }
 
     printf("APRES RECVFROM\n");
 
-    return envoyer_donnees_fichier(sockudp, adrclient, 6, port, file_name);
+    return envoyer_donnees_fichier(sock, adrclient, 6, port, file_name);
 }

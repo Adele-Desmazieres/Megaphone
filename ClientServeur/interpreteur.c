@@ -5,13 +5,16 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <ctype.h>
+#include <netdb.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 
 #include "interpreteur.h"
 
+#define PORT 2121
 #define BUF_SIZE 512
 #define ID_LIMIT 10
 #define MSG_LIMIT 255
@@ -537,7 +540,7 @@ int recevoir_donnees_fichier_client(int *userid) {
     char * recep_file = getln();
 
     // On créé le message avec lendata le nombre de caractère du fichier et data le nom du fichier.
-    msg_client mstruct = {6, *userid, numfil, 2121, strlen(str_input), str_input, 0};
+    msg_client mstruct = {6, *userid, numfil, PORT, strlen(str_input), str_input, 0};
     u_int16_t *marray = msg_client_to_send(mstruct);
 
     // l'envoie
@@ -594,7 +597,16 @@ int recevoir_donnees_fichier_client(int *userid) {
     return -1;
 }
 
-int envoyer_serveur_udp_adr(struct sockaddr_in6 adrclient, int sock) {
+int envoyer_serveur_udp_adr(struct sockaddr_in6 adr, int sock) {
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {perror("sock "); return 1; }
+
+    struct sockaddr_in adrclient;
+    memset(&adrclient, 0, sizeof(adrclient));
+    adrclient.sin_family = AF_INET;
+    adrclient.sin_port = htons(2121);
+    inet_pton(AF_INET, "127.0.0.1", &adrclient.sin_addr);
+
     char buffer[BUF_SIZE];
     memset(buffer, 0, BUF_SIZE);
     sprintf(buffer, "Envoi adrclient.");
@@ -602,7 +614,7 @@ int envoyer_serveur_udp_adr(struct sockaddr_in6 adrclient, int sock) {
     int len = sizeof(adrclient);
 
     //On envoie un message pour que le serveur puisse récuperer l'adresse du client
-    int env = sendto(sock, buffer, BUF_SIZE, 0, (struct sockaddr *)&adrclient, len);
+    int env = sendto(sock, buffer, strlen(buffer), 0, (struct sockaddr *)&adrclient, len);
     if (env < 0){ perror("echec de sendto "); return -1; }
 
     printf("APRES ENVOI\n");
