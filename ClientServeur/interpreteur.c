@@ -5,9 +5,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <ctype.h>
-#include <netdb.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -424,6 +422,9 @@ int poster_billet_client(int *userid)
     return -1;
 }
 
+/*
+    Envoie un billet avec le nom d'un fichier, ainsi que le contenu du fichier au serveur.
+*/
 int envoyer_donnees_fichier_client(int *userid) {
     char *str_input;
     char *num_input;
@@ -498,12 +499,14 @@ int envoyer_donnees_fichier_client(int *userid) {
     if (sockudp < 0) { perror("sock "); return 1; }
 
     int r = envoyer_donnees_fichier(sockudp, adrudp, 5, rep.nb, str_input);
-    close(sockudp);
-    if (r == -1) { perror("Fichier mal envoyé"); return -1; }
-    else printf("Fichier bien envoyé.\n");
 
+    close(sockudp);
     free(str_input);
     free(marray);
+
+    if (r == -1) { printf("Fichier mal envoyé.\n"); return -1; }
+    else printf("Fichier bien envoyé.\n");
+
     return 0;
 
     error:
@@ -514,6 +517,9 @@ int envoyer_donnees_fichier_client(int *userid) {
     return -1;
 }
 
+/*
+    Recoit le fichier d'un billet donné et écrit son contenu dans un autre passé en parametres.
+*/
 int recevoir_donnees_fichier_client(int *userid) {
     char *str_input;
     char *num_input;
@@ -570,16 +576,25 @@ int recevoir_donnees_fichier_client(int *userid) {
     // réussite
     close(sock);
 
-    struct sockaddr_in6 adrudp;
-    memset(&adrudp, 0, sizeof(adrudp));
+    struct sockaddr_in6 servadr;
+    memset(&servadr, 0, sizeof(servadr));
 
-    int sockudp = connexion_udp_6(&adrudp, rep.nb);
+    int sockudp = connexion_udp_6(&servadr, PORT);
     if (sockudp < 0) { perror("sock "); return 1; }
-    
-    int r = envoyer_serveur_udp_adr(adrudp, sock);
-    if (r == -1) { close(sockudp); perror("Fichier mal reçu"); return -1; }
+
+    //On envoie au serveur un paquet pour qu'il puisse identifier l'adresse client.
+    int r = envoyer_serveur_udp_adr(servadr, sock);
+    if (r == -1) { 
+        close(sockudp); 
+        free(recep_file);
+        free(str_input);
+        free(marray);
+        printf("Erreur communication serveur "); 
+        return -1; 
+    }
 
     r = recevoir_donnees_fichier(sockudp, recep_file);
+
     if (r == -1) { perror("Fichier mal reçu");}
     else printf("Fichier bien reçu.\n");
 
@@ -597,27 +612,33 @@ int recevoir_donnees_fichier_client(int *userid) {
     return -1;
 }
 
-int envoyer_serveur_udp_adr(struct sockaddr_in6 adr, int sock) {
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {perror("sock "); return 1; }
-
-    struct sockaddr_in adrclient;
-    memset(&adrclient, 0, sizeof(adrclient));
-    adrclient.sin_family = AF_INET;
-    adrclient.sin_port = htons(2121);
-    inet_pton(AF_INET, "127.0.0.1", &adrclient.sin_addr);
-
+/*
+    Envoie un paquet au fichier pour que celui-ci puisse identifier l'adresse du client.
+*/
+int envoyer_serveur_udp_adr(struct sockaddr_in6 servadr, int sock) {
     char buffer[BUF_SIZE];
     memset(buffer, 0, BUF_SIZE);
-    sprintf(buffer, "Envoi adrclient.");
+    sprintf(buffer, "Message pour serv.");
 
-    int len = sizeof(adrclient);
+    socklen_t len = sizeof(servadr);
 
-    //On envoie un message pour que le serveur puisse récuperer l'adresse du client
-    int env = sendto(sock, buffer, strlen(buffer), 0, (struct sockaddr *)&adrclient, len);
-    if (env < 0){ perror("echec de sendto "); return -1; }
+    int i = 0;
+    int r = 0;
 
-    printf("APRES ENVOI\n");
+    //On bloque jusqu'à ce que le descripteur d'écriture est disponible.
+    while(i < 10000){
+        fd_set wset;
+        FD_ZERO(&wset);
+        FD_SET(sock, &wset); //pour surveillance en écriture de sock
+        select(sock+1, NULL, &wset, 0, NULL);
+
+        if (FD_ISSET(sock, &wset)) {
+            //On envoie un message pour que le serveur puisse récuperer l'adresse du client
+            r = sendto(sock, buffer, strlen(buffer), 0, (struct sockaddr *) &servadr, len);
+            if (r < 0) { perror("Echec sendto "); return -1; }
+            i ++;
+        }
+    }
 
     return 0;
 }

@@ -28,12 +28,22 @@ paquet * paquet_constr(int codereq, int id, int numbloc, char * data, paquet * p
     return paq;
 }
 
-u_int16_t * paquet_to_udp(paquet paq) {
+/*
+    Renvoie la taille d'un msg par rapport à la taille de paquet en accord avec les uint16.
+*/
+size_t get_taille_msg_udp(paquet paq) {
     int len_paq = strlen(paq.data);
     if (len_paq % 2 != 0) len_paq += 1;
 
     //Taille: 2 pour les 4 octets de id,codereq,numblock et le reste fait la taille du fichier.
-    u_int16_t * msg = malloc(sizeof(u_int16_t) * (2 + len_paq/2 ) );
+    return sizeof(u_int16_t) * (2 + len_paq/2 );
+}
+
+/*
+    Transforme les données d'un paquet paq en message uint16.
+*/
+u_int16_t * paquet_to_udp(size_t len_paq, paquet paq) {
+    u_int16_t * msg = malloc(len_paq);
     if (msg == NULL) return NULL;
 
     //ENTETE
@@ -46,10 +56,6 @@ u_int16_t * paquet_to_udp(paquet paq) {
 
     //DATA
     for (int i = 2; i - 2 < strlen(paq.data); i += 2) {
-        //On part de 2 pour msg mais de paq.data[i - 2] car on veut partir de 0.
-        //char car1 = paq.data[i - 2];
-        //char car2 = paq.data[i - 2 +1];
-
         char car1 = ( i - 2 < strlen(paq.data)) ? paq.data[i - 2] : '\0';
         char car2 = ( i - 2 +1 < strlen(paq.data)) ? paq.data[i - 2 +1] : '\0';
 
@@ -59,6 +65,9 @@ u_int16_t * paquet_to_udp(paquet paq) {
     return msg;
 }
 
+/*
+    Transforme un message uint16 en un paquet.
+*/
 paquet * udp_to_paquet(uint16_t * msg) {
 
     //ENTETE
@@ -81,6 +90,7 @@ paquet * udp_to_paquet(uint16_t * msg) {
 
     int n = sizeof(msg) - 2;
 
+    //On transforme les char en octet uint16 2 par 2.
     while(ind_char < 512 || ind_mes < n) {
         tmp[ind_char + 1] = (char) (msg[ind_mes] >> 8);
         tmp[ind_char] = (char) (msg[ind_mes]);
@@ -96,17 +106,8 @@ paquet * udp_to_paquet(uint16_t * msg) {
     return paquet_constr(codereq, id, numbloc, data, NULL, NULL);
 }
 
-paquet * pop_paquet(liste_paquets * liste) {
-    if (liste -> first == NULL) return NULL;
-
-    paquet * paq = liste -> first;
-    liste -> first = paq -> next;
-
-    return paq;
-}
-
 /*
-    Ajoute en fonction du numéro de bloc à la liste.
+    Ajoute un paquet dans l'ordre de la liste des paquets en fonction de son numblock.
 */
 void push_paquet(liste_paquets * liste, paquet * paq) {
     if (liste -> first == NULL) {
@@ -130,11 +131,17 @@ void push_paquet(liste_paquets * liste, paquet * paq) {
     }
 }
 
+/*
+    Libère les données d'un paquet.
+*/
 void free_paquet(paquet * paq) {
     free(paq -> data);
     free(paq);
 }
 
+/*
+    Libère la liste des paquets.
+*/
 void free_liste_paquets(liste_paquets * liste) {
     paquet * courant = liste -> first;
     while(courant != NULL) {
@@ -147,10 +154,10 @@ void free_liste_paquets(liste_paquets * liste) {
     free(liste);
 }
 
+/*
+    Envoie les données d'un fichier à la sock passée en parametre ainsi que l'adrudp et le port.
+*/
 int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, int port, char * file_name) {
-
-    printf("APPELE\n");
-
     int fd = open(file_name, O_RDONLY, 0640);
     if (fd == -1) { perror("open"); return -1; }
 
@@ -162,18 +169,20 @@ int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, i
     //On prend + 1 pour prendre en compte le symbole '\0' pour strlen
     char read_buff[SIZE_PAQ + 1];
     memset(read_buff, '\0', SIZE_PAQ + 1);
-
     int r = read(fd, read_buff, SIZE_PAQ);
+
     if (r < 0) { perror("read "); return -1; }
     else if (r == 0) { printf("Le fichier que vous voulez envoyer est vide.\n"); return -1;}
 
-    int taille_msg_udp = sizeof(u_int16_t) * (2 + (512)/2);
     int numbloc = 0;
     socklen_t len = sizeof(adrudp);
+
+    //On lit les données de notre fichier, transforme en msg uint16 et on envoie.
     while (r > 0) {
         paquet paq = {5, codereq, numbloc, read_buff};
-        u_int16_t * msg = paquet_to_udp(paq);
-        r = sendto(sock, msg, taille_msg_udp, 0, (struct sockaddr *)&adrudp, len);
+        size_t len_paq = get_taille_msg_udp(paq);
+        u_int16_t * msg = paquet_to_udp(len_paq, paq);
+        r = sendto(sock, msg, len_paq, 0, (struct sockaddr *)&adrudp, len);
         if (r < 0){ perror("sendto "); return -1;}
 
         memset(read_buff, 0, SIZE_PAQ + 1);
@@ -187,8 +196,9 @@ int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, i
     if (file_size % 512 == 0) {
         memset(read_buff, 0, SIZE_PAQ + 1);
         paquet paq = {5, codereq, numbloc, read_buff};
-        u_int16_t * msg = paquet_to_udp(paq);
-        r = sendto(sock, msg, taille_msg_udp, 0, (struct sockaddr *)&adrudp, len);
+        size_t len_paq = get_taille_msg_udp(paq);
+        u_int16_t * msg = paquet_to_udp(len_paq, paq);
+        r = sendto(sock, msg, len_paq, 0, (struct sockaddr *)&adrudp, len);
         free(msg);
     }
 
@@ -197,6 +207,9 @@ int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, i
     return 0;
 }
 
+/*
+    Recoit les données d'un fichier à la sock passée en parametre.
+*/
 int recevoir_donnees_fichier(int sock, char * file_name) {
     //On créé la liste qui va pouvoir stocker tous les paquets reçus.
     liste_paquets * liste_paq = malloc(sizeof(liste_paquets));
@@ -212,11 +225,14 @@ int recevoir_donnees_fichier(int sock, char * file_name) {
     int nb_paquets = 0;
     int num_dernier_paq = -1;
 
+    struct sockaddr_in6 recv_adr;
+    socklen_t len = sizeof(recv_adr);
+
     //Tant que r vaut la taille d'un msg udp on continue de recevoir des données, 
     //sinon c'est que l'on a récupéré le dernier paquet.
     while(num_dernier_paq == -1 || nb_paquets < num_dernier_paq) {
         memset(buff, 0, taille_msg_udp);
-        r = recvfrom(sock, buff, taille_msg_udp, 0, NULL, NULL);
+        r = recvfrom(sock, buff, taille_msg_udp, 0, (struct sockaddr *)&recv_adr, &len);
         if (r < 0) { perror("recv "); free_liste_paquets(liste_paq); return -1; }
 
         paquet * paq = udp_to_paquet(buff);
@@ -228,12 +244,15 @@ int recevoir_donnees_fichier(int sock, char * file_name) {
     }
 
     //On écrit enfin dans le fichier toute la liste des paquets.s
-    r = ecrire_dans_fichier_udp("fichier_recu.txt", liste_paq);
+    r = ecrire_dans_fichier_udp(file_name, liste_paq);
     if (r == -1) return -1;
 
     return 0;
 }
 
+/*
+    Ecrit les données de tous les paquets dans un fichier.
+*/
 int ecrire_dans_fichier_udp(char * file_name, liste_paquets * liste_paq) {
     //On ouvre le fichier et le créé si besoin.
     int fd = open(file_name, O_CREAT | O_WRONLY | O_TRUNC, 0640);
