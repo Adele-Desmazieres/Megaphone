@@ -18,7 +18,7 @@
 #define TAILLE_MSG_REP 6
 //Valeur à part car modifiables à guises
 #define PORT_UDP 2121
-#define BUF_SIZE_UDP 512
+#define BUF_SIZE 512
 
 int main(int argc, char **argv) {
     return creation_serveur();
@@ -68,7 +68,7 @@ int creation_serveur() {
     return EXIT_FAILURE;
 }
 
-int connexion_udp() {
+int connexion_udp(int port) {
     //Creation de la socket UDP serveur IPV6.
     int sock = socket(PF_INET6, SOCK_DGRAM, 0);
     if (sock < 0) goto error;
@@ -76,8 +76,8 @@ int connexion_udp() {
     struct sockaddr_in6 adrserv;
     memset(&adrserv, 0, sizeof(adrserv));
     adrserv.sin6_family = AF_INET6;
-    adrserv.sin6_port = htons(PORT);
     adrserv.sin6_addr = in6addr_any;
+    adrserv.sin6_port = htons(port);
 
     //Ouverture de la socket avec la prise en charge à la fois de IPV4 et de IPV6 dans une socket polymorphe.
     int no = 0;
@@ -168,7 +168,6 @@ void * communication_client(void * arg_base_serveur) {
             break;
         //L'utilisateur veut poster un billet.
         case 2 :
-
             retour = poster_billet(msg_client, base_serv -> liste_fils, base_serv -> liste_uti, msg_client -> data);
             if (retour == -1) envoi_erreur_client(sockcli);
             else {
@@ -198,12 +197,24 @@ void * communication_client(void * arg_base_serveur) {
                 msg_serveur to_send = {msg_client -> codereq, msg_client -> id, msg_client -> numfil, retour};
                 envoie_reponse_client(sockcli, to_send);
                 close(sockcli);
-                retour = recevoir_donnees_fichier(msg_client, base_serv -> liste_fils, base_serv -> liste_uti, msg_client -> data);
+                retour = recevoir_donnees_fichier_serveur(msg_client, base_serv -> liste_fils, base_serv -> liste_uti, msg_client -> data);
             }
             break;
         //L'utilisateur veut telecharger un fichier.
         case 6 :
-            telecharger_fichier(); break;
+            retour = fichier_existe_bdd(msg_client, base_serv -> liste_fils);
+            if (retour == -1) {
+                envoi_erreur_client(sockcli);
+                close(sockcli);
+            }
+            else {
+                msg_serveur to_send = {msg_client -> codereq, msg_client -> id, msg_client -> numfil, retour};
+                envoie_reponse_client(sockcli, to_send);
+                close(sockcli);
+
+                retour = envoyer_donnees_fichier_serveur(msg_client -> nb, msg_client -> data);
+            }
+            break;
         default :
             envoi_erreur_client(sockcli); break;
     }
@@ -233,7 +244,6 @@ void envoie_reponse_client(int sockcli, msg_serveur reponse_serveur) {
     if (snd <= 0){
         perror("Erreur envoi réponse\n");
     }
-
 
     free(msg_reponse);
 }
@@ -382,6 +392,9 @@ void abonner_fil() {
 }
 
 
+/*
+    Envoie le port du serveur si le fil que l'utilisateur a selectionné existe bien.
+*/
 int udp_envoi_port_client(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili) {
     int num_fil = msg_client -> numfil;
 
@@ -395,72 +408,106 @@ int udp_envoi_port_client(msg_client * msg_client, liste_fils * liste_fils, user
     return PORT_UDP;
 }
 
-int recevoir_donnees_fichier(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * file_name) {
-    //On créé notre connexion udp ainsi que l'adresse client.
-    int sock = connexion_udp();
-    if (sock < 0) return -1;
+/*
+    Recevoit les données du client pour les écrire dans un fichier serveur et créer un billet.
+*/
+int recevoir_donnees_fichier_serveur(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * file_name) {
+    int sockudp = connexion_udp(PORT);
+    if (sockudp < 0) { perror("sock "); return 1; }
 
-    struct sockaddr_in6 adrclient;
-    socklen_t sizeclient = sizeof(adrclient);
+    int r = recevoir_donnees_fichier(sockudp, "fic_serv.txt");
+    close(sockudp);
+    if (r == -1) return -1;
 
-    //On créé la liste qui va pouvoir stocker tous les paquets reçus.
-    liste_paquets * liste_paq = malloc(sizeof(liste_paquets));
-    if (liste_paq == NULL) return -1;
-
-    int taille_msg_udp = sizeof(u_int16_t) * (4 + (512)/2);
-    u_int16_t buff[taille_msg_udp];
-    int r = taille_msg_udp;
-
-    int nb_paquets = 0;
-    int num_dernier_paq = -1;
-
-    //Tant que r vaut la taille d'un msg udp on continue de recevoir des données, 
-    //sinon c'est que l'on a récupéré le dernier paquet.
-    while(num_dernier_paq == -1 || nb_paquets < num_dernier_paq) {
-        memset(buff, 0, taille_msg_udp);
-        r = recvfrom(sock, buff, taille_msg_udp, 0, (struct sockaddr *) &adrclient, &sizeclient);
-        if (r < 0) {
-            perror("recv ");
-            free_liste_paquets(liste_paq);
-            close(sock);
-            return -1;
-        }
-        paquet * paq = udp_to_paquet(buff); 
-        push_paquet(liste_paq, paq);  
-        if (r != 512) num_dernier_paq = paq -> numbloc;
-        nb_paquets += 1;
-    }
-
-    //On écrit enfin dans le fichier toute la liste des paquets.s
-    r = ecrire_dans_fichier_udp("fichier_recu.txt", liste_paq);
-    if (r == -1) {
-        close(sock);
-        return -1;
-    }
-
-    free(liste_paq);
-    close(sock);
-
-    //CONVERTIR NOM DU FICHIER + ESPACE + SA TAILLE
+    //On converti la taille du nom du fichier en string.
     char taille_nom_fic[5];
-    sprintf(taille_nom_fic, "%d", msg_client ->datalen);
+    sprintf(taille_nom_fic, "%d", msg_client -> datalen);
 
-    //La taille du texte est composée de la taille du nom du fichier, d'un espace, de la taille
-    //du int fichier puis du charactère \0.
-    size_t taille_texte_total = strlen(taille_nom_fic) + 1 + strlen(msg_client -> data) + 1;
-    char contenu_billet[taille_texte_total + 1];
+    size_t sz_of_name = strlen(file_name);
+    size_t sz_file_length = strlen(taille_nom_fic);
 
-    //On recopie le nom du fichier, puis on ajoute un espace puis on ajoute la taille du fichier.
-    strncpy(msg_client -> data, contenu_billet, strlen(msg_client -> data));
-    contenu_billet[ msg_client -> datalen + 1 ] = ' ';
-    strncpy(taille_nom_fic, contenu_billet + msg_client -> datalen + 2, strlen(taille_nom_fic));
-    contenu_billet[taille_texte_total - 1] = '\0';
+    //La taille du texte est composée de la taille du int fichier puis un espace puis la taille du string
+    //puis du charactère \0.
+    size_t total_size = sz_of_name + 1 + sz_file_length + 1;    
+    char contenu_billet[total_size];
+    memset(contenu_billet, '\0', total_size);
+
+    //On recopie le nom du fichier puis sa taille
+    strncpy(contenu_billet, file_name, sz_of_name);
+    contenu_billet[sz_of_name] = ' ';
+    strncpy(contenu_billet + sz_of_name + 1, taille_nom_fic, sz_file_length);
 
     poster_billet(msg_client, liste_fils, liste_utili, contenu_billet);
     
     return 0;
 }
 
-void telecharger_fichier() {
+/*
+    Regarde si le fichier existe bien à la fois dans la liste des fils mais aussi physiquement.
+*/
+int fichier_existe_bdd(msg_client * msg_client, liste_fils * liste_fils) {
+    //Si num_fil vaut 0 alors on renvoie directement -1.
+    if (msg_client -> numfil == 0) return -1;
+
+    //Sinon on cherche le fil et on cherche le fichier.
+    else {
+        fil * fil_fichier = get_fil_id(liste_fils, msg_client -> numfil);
+        //Le fil que l'utilisateur a voulu selectionner n'existe pas.
+        if (fil_fichier == NULL) return -1;
+
+        //On vérifie que le fichier existe bien dans le fil que l'on a demandé.
+        int r = does_file_exist_fil(fil_fichier, msg_client -> data);
+        if (r == -1) return -1;
+
+        //On vérifie que le fichier existe bien physiquement
+        struct stat * buf = malloc(sizeof(struct stat));
+        if (buf == NULL) { perror("malloc "); return -1; }
+        if (stat(msg_client -> data, buf) != 0) {
+            printf("Le fichier que vous avez entré n'est pas trouvable.\n");
+            free(buf);
+            return -1;
+        }
+
+        free(buf);
+    }
+
+    return 0;
+}
+
+/*
+    Envoie les données du fichier en parametre vers le numéro de port du client qui l'a demandé.
+*/
+int envoyer_donnees_fichier_serveur(int port, char * file_name) {
+    int sockudp = connexion_udp(port);
+    if (sockudp < 0) { perror("sock "); return 1; }
     
+    //On récupère l'adresse du client auquel on veut envoyer les données.
+    struct sockaddr_in6 adrclient;
+    socklen_t len = sizeof(adrclient);
+    char buffer[BUF_SIZE + 1];
+    memset(buffer, '\0', BUF_SIZE + 1);
+
+    int r = 0;
+    int i = 0;
+
+    //On bloque jusqu'à ce que le descripteur de lecture est disponible.
+    while(i < 10000) {
+        fd_set rset;
+        FD_ZERO(&rset);
+        FD_SET(sockudp, &rset);
+
+        select(sockudp+1, &rset, NULL, 0, NULL);
+
+        if (FD_ISSET(sockudp, &rset)) {
+            r = recvfrom(sockudp, buffer, BUF_SIZE + 1, 0, (struct sockaddr *) &adrclient, &len);
+            if (r < 0) { perror("recv "); return -1; }
+            else break;
+        }
+        else {
+            i += 1;
+        }
+    }
+
+    if (r == 0) return -1;
+    else return envoyer_donnees_fichier(sockudp, adrclient, 6, port, file_name);
 }

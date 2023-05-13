@@ -74,9 +74,14 @@ int connexion_udp_4(struct sockaddr_in * adrclient, int port) {
 
     adrclient -> sin_family = AF_INET;
     adrclient -> sin_port = htons(port);
-    inet_pton(AF_INET, ADR_IPV4, &adrclient -> sin_addr);
+    if (inet_pton(AF_INET, ADR_IPV4, &adrclient -> sin_addr) < 0) goto error;
 
     return sock;
+
+    error:
+    perror("Erreur connexion au serveur "); 
+    close(sock);
+    return -1;
 }
 
 /*
@@ -88,7 +93,12 @@ int connexion_udp_6(struct sockaddr_in6 * adrclient, int port) {
 
     adrclient -> sin6_family = AF_INET6;
     adrclient -> sin6_port = htons(port);
-    inet_pton(AF_INET, ADR_IPV6, &adrclient -> sin6_addr);
+    if (inet_pton(AF_INET, ADR_IPV6, &adrclient -> sin6_addr) < 0) goto error;
 
     return sock;
+
+    error:
+    perror("Erreur connexion au serveur "); 
+    close(sock);
+    return -1;
 }

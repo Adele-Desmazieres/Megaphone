@@ -51,8 +51,6 @@ fil * fil_constr(char * auteur, char * texte){
 
     ret->suiv = NULL;
 
-    printf("TEXTE DU BILLET : %s\n", texte);
-
     return ret;
 
 }
@@ -168,6 +166,16 @@ billet * get_n_derniers_billets_from_id(liste_fils * l ,int id, int n){
 
     return get_n_derniers_billets(tmp, n);
 
+}
+
+int does_file_exist_fil(fil * f, char * file_name) {
+    billet * courant = f -> premier_msg;
+    while(courant != NULL) {
+        if (strncmp(courant -> texte, file_name, strlen(file_name)) == 0) return 0;
+        courant = courant -> suiv;
+    }
+
+    return -1;
 }
 
 //LIBERE LA MEMOIRE OCCUPEE PAR UN FIL F

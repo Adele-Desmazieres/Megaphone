@@ -68,7 +68,7 @@ int lire_pseudo_depuistcp(int sockfd, msg_client * msg){
     }
 
     pseudo[10] = '\0';
-    //printf("pseudo1 : %s\n", pseudo);
+
 
     msg->data = pseudo;
 
