@@ -59,6 +59,11 @@ int creation_serveur() {
     int r = setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &no, sizeof(no));
     if (r == -1) goto error;
 
+    //Permission de réutilisation de l'adresse
+    int ok = 1;
+    r = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &ok, sizeof(ok));
+    if (r == -1) goto error;
+
     r = bind(sock, (struct sockaddr *) &adrserv, sizeof(adrserv));
     if (r == -1) goto error;
     
