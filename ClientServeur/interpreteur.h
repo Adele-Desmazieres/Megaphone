@@ -21,5 +21,7 @@ int recevoir_donnees_fichier_client(int *userid);
 //Envoie un paquet au fichier pour que celui-ci puisse identifier l'adresse du client.
 int envoyer_serveur_udp_adr(struct sockaddr_in6 adrserv, int sock);
 
+int abonnement_fil(int userid);
+void * thread_notifs(void * args);
 
 #endif

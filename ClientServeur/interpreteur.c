@@ -12,7 +12,7 @@
 #include "../UDP/msg_multicast.h"
 #include <poll.h>
 #include <pthread.h>
-
+#include <sys/select.h>
 
 #include "interpreteur.h"
 
@@ -639,6 +639,131 @@ int recevoir_donnees_fichier_client(int *userid) {
     free(str_input);
     close(sock);
     return -1;
+}
+
+/*
+    Envoie un paquet au fichier pour que celui-ci puisse identifier l'adresse du client.
+*/
+int envoyer_serveur_udp_adr(struct sockaddr_in6 servadr, int sock) {
+    char buffer[BUF_SIZE];
+    memset(buffer, 0, BUF_SIZE);
+    sprintf(buffer, "Message pour serv.");
+
+    socklen_t len = sizeof(servadr);
+
+    int i = 0;
+    int r = 0;
+
+    //On bloque jusqu'à ce que le descripteur d'écriture est disponible.
+    while(i < 10000){
+        fd_set wset;
+        FD_ZERO(&wset);
+        FD_SET(sock, &wset); //pour surveillance en écriture de sock
+        select(sock+1, NULL, &wset, 0, NULL);
+
+        if (FD_ISSET(sock, &wset)) {
+            //On envoie un message pour que le serveur puisse récuperer l'adresse du client
+            r = sendto(sock, buffer, strlen(buffer), 0, (struct sockaddr *) &servadr, len);
+            if (r < 0) { perror("Echec sendto "); return -1; }
+            i ++;
+        }
+    }
+
+    return 0;
+}
+
+int abonnement_fil(int userid){
+
+    int sockfd = connexion_6();
+    if(sockfd < 0){
+        perror("Erreur de connexion @ abonnement_fil\n");
+        return -1;
+    }
+
+    //TODO récupérer les informations par l'interpréteur : numéro de fil
+
+    char *num_input;
+
+    printf("Entrez le numéro du fil auquel vous souhaitez vous abonner > ");
+    num_input = getln();
+    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
+        printf("Veuillez entrer un numéro correct > ");
+        free(num_input);
+        num_input = getln();
+    }
+    int numfil = atoi(num_input);
+    free(num_input);
+
+    msg_client requete = { .codereq = 4, .id = userid, .numfil = numfil, .datalen = 0, .data = "", .is_inscript = 0};
+    u_int16_t * buf = msg_client_to_send(requete);
+
+    if (send(sockfd, buf, 6, 0) < 0){
+        perror("Erreur envoi requête @ abonnemnt_fil \n"); return -1;
+    }
+
+    free(buf);
+
+    msg_demande_abo * infos_ip = tcp_to_msg_abo(sockfd);
+    
+    if(infos_ip->codereq == 31){
+        printf("Erreur côté serveur\n"); return -1;
+    }
+
+    int sock_multicast = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (sock_multicast < 0){
+        perror("Erreur socket @ abonnement_fil\n"); return -1;
+    }
+
+    struct sockaddr_in6 grsock = {0};
+    grsock.sin6_family = AF_INET6;
+    grsock.sin6_addr = in6addr_any;
+    grsock.sin6_port = htons(PORT_MULTICAST);
+
+    int reuse = 1;
+    if (setsockopt(sock_multicast, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
+        perror("erreur option reuse addr @ abonnement_fil \n");
+    }
+
+    if(bind(sock_multicast, (struct sockaddr * ) &grsock, sizeof(grsock)) < 0){
+        perror("Erreur bind @ abonnement_fil \n");
+    }
+
+    struct ipv6_mreq group = {0};
+    printf("IPv6 reçue? %s \n", infos_ip->ip);
+    inet_pton(AF_INET6, infos_ip->ip, &group.ipv6mr_multiaddr);
+    group.ipv6mr_interface = 0;
+
+    if (setsockopt(sock_multicast, IPPROTO_IPV6, IPV6_JOIN_GROUP, &group, sizeof(group)) < 0){
+        perror("erreur option join group @ abonnement_fil \n");
+    }
+
+    struct pollfd poll_specifique = {0};
+    poll_specifique.fd = sock_multicast;
+    poll_specifique.events = POLLIN;
+
+    printf("Socket ouverte pour le multicast? %d\n", sock_multicast);
+    pthread_mutex_lock(&verrou);
+
+    notrepoll = realloc(notrepoll, sizeof(struct pollfd) * ((*tailledepoll) + 1) );
+    if (notrepoll == NULL){
+        perror("Echec realloc @ abonnement_fil\n");
+    }
+    //notrepoll[*tailledepoll] = poll_specifique;
+    memcpy(notrepoll + (*tailledepoll), &poll_specifique, sizeof(struct pollfd));
+    int nouv_taille_poll = (*tailledepoll + 1);
+    memcpy(tailledepoll, &nouv_taille_poll, sizeof(int));
+    printf("Socket ouverte pour le multicast, dans la var globale? %d\n", (notrepoll[(*tailledepoll) - 1]).fd);
+    pthread_mutex_unlock(&verrou);
+    printf("tailledepol = %d\n", *tailledepoll);
+    printf("pointeur vers structure dans abonnement : %p\n", (void *)notrepoll);
+
+
+    printf("Abonné avec succès au fil %d\n", infos_ip->numfil);
+
+    free(infos_ip->ip);
+    free(infos_ip);
+
+    return 0;
 }
 
 void * thread_notifs(void * args){
