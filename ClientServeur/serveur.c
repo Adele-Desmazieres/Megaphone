@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <fcntl.h> 
 #include "../UDP/msg_multicast.h"
+#include <sys/select.h>
 
 #include "serveur.h"
 
@@ -567,8 +568,8 @@ int envoyer_donnees_fichier_serveur(int port, char * file_name) {
     //On récupère l'adresse du client auquel on veut envoyer les données.
     struct sockaddr_in6 adrclient;
     socklen_t len = sizeof(adrclient);
-    char buffer[BUF_SIZE + 1];
-    memset(buffer, '\0', BUF_SIZE + 1);
+    char buffer[BUF_SIZE_UDP + 1];
+    memset(buffer, '\0', BUF_SIZE_UDP + 1);
 
     int r = 0;
     int i = 0;
@@ -582,7 +583,7 @@ int envoyer_donnees_fichier_serveur(int port, char * file_name) {
         select(sockudp+1, &rset, NULL, 0, NULL);
 
         if (FD_ISSET(sockudp, &rset)) {
-            r = recvfrom(sockudp, buffer, BUF_SIZE + 1, 0, (struct sockaddr *) &adrclient, &len);
+            r = recvfrom(sockudp, buffer, BUF_SIZE_UDP + 1, 0, (struct sockaddr *) &adrclient, &len);
             if (r < 0) { perror("recv "); return -1; }
             else break;
         }
