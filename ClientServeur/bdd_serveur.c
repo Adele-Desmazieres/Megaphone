@@ -51,6 +51,13 @@ fil * fil_constr(char * auteur, char * texte){
 
     ret->suiv = NULL;
 
+    ret->is_multicast = 0;
+    ret->multicast_sockfd = -1;
+    ret->multicast_addr = NULL;
+    ret->sockopt = NULL;
+
+    printf("TEXTE DU BILLET : %s\n", texte);
+
     return ret;
 
 }
@@ -207,6 +214,7 @@ void free_liste_fils(liste_fils * l){
 
         fil * tmp2 = tmp;
         tmp = tmp->suiv;
+        free(tmp2->multicast_addr);
         free_fil(tmp2);
 
     }

@@ -8,8 +8,10 @@
 #include <netdb.h>
 #include <stdbool.h>
 #include <pthread.h>
-#include<sys/stat.h>
+#include <sys/stat.h>
 #include <fcntl.h> 
+#include "../UDP/msg_multicast.h"
+#include <sys/select.h>
 
 #include "serveur.h"
 
@@ -18,9 +20,14 @@
 #define TAILLE_MSG_REP 6
 //Valeur à part car modifiables à guises
 #define PORT_UDP 2121
-#define BUF_SIZE 512
+#define BUF_SIZE_UDP 512
+
+char * last_used_multicast_ip = FIRST_MULTICAST_IP;
+
 
 int main(int argc, char **argv) {
+    last_used_multicast_ip = malloc(40);
+    memcpy(last_used_multicast_ip, FIRST_MULTICAST_IP, 40);
     return creation_serveur();
 }
 
@@ -52,6 +59,11 @@ int creation_serveur() {
     //Ouverture de la socket avec la prise en charge à la fois de IPV4 et de IPV6 dans une socket polymorphe.
     int no = 0;
     int r = setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &no, sizeof(no));
+    if (r == -1) goto error;
+
+    //Permission de réutilisation de l'adresse
+    int ok = 1;
+    r = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &ok, sizeof(ok));
     if (r == -1) goto error;
 
     r = bind(sock, (struct sockaddr *) &adrserv, sizeof(adrserv));
@@ -183,7 +195,13 @@ void * communication_client(void * arg_base_serveur) {
             break;
         //l'utilisateur veut s'abonner à un fil.
         case 4 :
-            abonner_fil(); 
+            //Ce point virgule est nécessaire apparemment
+            ; fil * f = NULL;
+            if ((f = get_fil_id(base_serv->liste_fils, msg_client->numfil)) == NULL){
+                envoi_erreur_client(sockcli);
+            } else {
+                abonner_fil(f, msg_client, sockcli, base_serv); 
+            }
             close(sockcli);
             break;
         //L'utilisateur veut envoyer un fichier.
@@ -278,6 +296,20 @@ int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * 
         //Le fil que l'utilisateur a voulu selectionner n'existe pas.
         if (fil_poster == NULL) return -1;
         ajouter_billet(fil_poster, username, contenu);
+
+        //Pour le multicast, on envoie une notif si le fil est en abonnement
+        if (fil_poster->is_multicast){
+            msg_notif to_snd = { .codereq = 4, .id = 0, .numfil = fil_poster->id+1, .pseudo = username, .data = contenu};
+            u_int16_t * buf = msg_notif_to_udp(to_snd);
+
+            printf("SOCK OU ON ENVOIE : %d\n", fil_poster->multicast_sockfd);
+
+            if ((sendto(fil_poster->multicast_sockfd, buf, SIZE_MSG_NOTIF, 0, (struct sockaddr *)fil_poster->sockopt, sizeof(struct sockaddr_in6))) < 0){
+                perror("Erreur notification @ poster_billet \n");
+            }
+
+            free(buf);
+        }
     }
 
     return num_fil;
@@ -291,7 +323,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
     int nb;
 
     //SI UN SEUL FIL
-    if(numfil != 0){
+    if(msg_client->numfil != 0){
 
         nb = (msg_client->nb > get_fil_id (liste_fils, numfil)->nb_de_msg || msg_client->nb == 0) ? ( get_fil_id(liste_fils , numfil) -> nb_de_msg ) : msg_client->nb ;
 
@@ -299,7 +331,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
         msg_serveur prem_reponse = {msg_client->codereq, msg_client->id, numfil, nb};
         uint16_t * prem_reponse_a_envoyer = msg_serveur_to_send(prem_reponse);
 
-        int snd = send(sockcli, prem_reponse_a_envoyer, 512, 0);
+        int snd = send(sockcli, prem_reponse_a_envoyer, 6, 0);
         if (snd <= 0){
             perror("Erreur envoi réponse\n");
         }
@@ -318,7 +350,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
             uint16_t * msg_a_envoyer = msg_billet_to_send(a_envoyer);
 
             //On envoie le billet actuel
-            snd = send(sockcli, msg_a_envoyer, 512, 0);
+            snd = send(sockcli, msg_a_envoyer, 24 + (a_envoyer.datalen - 1) , 0);
             if (snd <= 0){
                 perror("Erreur envoi réponse\n");
             }
@@ -339,17 +371,24 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
     int nbr_billets[liste_fils-> nb_de_fils];
 
     //On parcourt la liste des fils pour récupérer le nombre réel de billets à envoyer selon le fil
+    nb = 0;
     fil * tmp = liste_fils->premier_fil;
     for(int i = 0; i < liste_fils->nb_de_fils; i++, tmp = tmp->suiv){
-        nbr_billets[i] = (msg_client -> nb > tmp->nb_de_msg) ? tmp->nb_de_msg : msg_client -> nb;
+        if(msg_client->nb == 0){
+            //printf("nb de message de tmp : %d \n", tmp->nb_de_msg);
+            nbr_billets[i] = tmp->nb_de_msg;
+        } else {
+            nbr_billets[i] = (msg_client -> nb > tmp->nb_de_msg) ? tmp->nb_de_msg : msg_client -> nb;
+        }
         nb += nbr_billets[i];
     }
+    //printf("NB: %d \n", nb);
 
     //On envoie le premier message annoncant le nombre de messages qui vont suivre
     msg_serveur prem_reponse = {msg_client->codereq, msg_client->id, numfil, nb};
     uint16_t * prem_reponse_a_envoyer = msg_serveur_to_send(prem_reponse);
 
-    int snd = send(sockcli, prem_reponse_a_envoyer, 512, 0);
+    int snd = send(sockcli, prem_reponse_a_envoyer, 6, 0);
     if (snd <= 0){
         perror("Erreur envoi réponse\n");
     }
@@ -366,11 +405,11 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
 
             //On transforme le billet actuel en message à envoyer
             billet actuel = billets_pour_fil_actuel[j];
-            msg_billet_envoi a_envoyer = { tmp->id, strlen(actuel.texte), tmp->premier_msg->auteur, actuel.auteur, actuel.texte};
+            msg_billet_envoi a_envoyer = { tmp->id+1, strlen(actuel.texte), tmp->premier_msg->auteur, actuel.auteur, actuel.texte};
             uint16_t * msg_a_envoyer = msg_billet_to_send(a_envoyer);
 
             //On l'envoie
-            snd = send(sockcli, msg_a_envoyer, 512, 0);
+            snd = send(sockcli, msg_a_envoyer, 24 + (a_envoyer.datalen - 1), 0);
             if (snd <= 0){
                 perror("Erreur envoi réponse\n");
             }
@@ -387,8 +426,53 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
 
 }
 
-void abonner_fil() {
+void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * bs) {
+    if(!f->is_multicast){
+        //ACTIVER LE MULTICAST POUR F
 
+        f->multicast_sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
+        if (f->multicast_sockfd < 0){
+            perror("SOCK @ abonner_fil \n");
+        }
+
+        //On incrémente l'ip pour en avoir une différente pour chaque fil en multicast
+        f->multicast_addr = malloc(40);
+        char * new_ip = incr_ip(last_used_multicast_ip);
+        memcpy(last_used_multicast_ip, new_ip, 40);
+        memcpy(f->multicast_addr, new_ip, 40);
+        free(new_ip);
+
+        int ifindex = 0;
+        if(setsockopt(f->multicast_sockfd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifindex, sizeof(ifindex))){
+            perror("erreur option socket multicast \n");
+        }
+
+        int reuse = 1;
+        if(setsockopt(f->multicast_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse))){
+            perror("erreur option socket multicast \n");
+        }
+
+        struct sockaddr_in6 grsock = {0};
+        grsock.sin6_family = AF_INET6;
+        printf("Adresse IP de multicast envoyée : %s\n", f->multicast_addr);
+        inet_pton(AF_INET6, f->multicast_addr, &grsock.sin6_addr);
+        grsock.sin6_port = htons(PORT_MULTICAST);
+
+
+        f->sockopt = malloc(sizeof(struct sockaddr_in6));
+        memcpy(f->sockopt, &grsock, sizeof(grsock));
+
+        f->is_multicast = 1;
+
+    }
+    msg_demande_abo reponse = { .codereq = msg_client->codereq, .id = msg_client->id, .nb = PORT_MULTICAST, .numfil = msg_client->numfil, .ip = f->multicast_addr};
+    u_int16_t * to_snd = msg_abo_to_tcp(reponse);
+
+    if ( (send(sockcli, to_snd, SIZE_MSG_ABO, 0)) < 0){
+        perror("Erreur send abonnement\n ");
+    }
+
+    free(to_snd);
 }
 
 
@@ -484,8 +568,8 @@ int envoyer_donnees_fichier_serveur(int port, char * file_name) {
     //On récupère l'adresse du client auquel on veut envoyer les données.
     struct sockaddr_in6 adrclient;
     socklen_t len = sizeof(adrclient);
-    char buffer[BUF_SIZE + 1];
-    memset(buffer, '\0', BUF_SIZE + 1);
+    char buffer[BUF_SIZE_UDP + 1];
+    memset(buffer, '\0', BUF_SIZE_UDP + 1);
 
     int r = 0;
     int i = 0;
@@ -499,7 +583,7 @@ int envoyer_donnees_fichier_serveur(int port, char * file_name) {
         select(sockudp+1, &rset, NULL, 0, NULL);
 
         if (FD_ISSET(sockudp, &rset)) {
-            r = recvfrom(sockudp, buffer, BUF_SIZE + 1, 0, (struct sockaddr *) &adrclient, &len);
+            r = recvfrom(sockudp, buffer, BUF_SIZE_UDP + 1, 0, (struct sockaddr *) &adrclient, &len);
             if (r < 0) { perror("recv "); return -1; }
             else break;
         }

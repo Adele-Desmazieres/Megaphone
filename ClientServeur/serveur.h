@@ -40,7 +40,7 @@ void abonner_fil();
 //Envoie le port du serveur si le fil que l'utilisateur a selectionné existe bien.
 int udp_envoi_port_client(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili);
 
-//Recevoit les données du client pour les écrire dans un fichier serveur et créer un billet.
+//Reçoit les données du client pour les écrire dans un fichier serveur et créer un billet.
 int recevoir_donnees_fichier_serveur(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * file_name);
 
 //Regarde si le fichier existe bien à la fois dans la liste des fils mais aussi physiquement.

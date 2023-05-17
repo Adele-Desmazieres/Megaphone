@@ -1,6 +1,8 @@
 #ifndef MSG_SERVEUR
 #define MSG_SERVEUR
 
+#define SIZE_MSG_SERVEUR 6
+
 #include <stdint.h>
 
 typedef struct msg_serveur {
