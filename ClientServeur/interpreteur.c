@@ -23,7 +23,7 @@
 #define PSEUDO_LIMIT 10
 #define ENTETE_LEN 7
 
-pthread_mutex_t verrou = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t verrou_pollfd = PTHREAD_MUTEX_INITIALIZER;
 
 struct pollfd * notrepoll;
 int * tailledepoll;
@@ -294,10 +294,10 @@ int interpreteur_utilisateur(int *userid)
         }
     }
 
-    pthread_mutex_lock(&verrou);
+    pthread_mutex_lock(&verrou_pollfd);
     free(notrepoll);
     free(tailledepoll);
-    pthread_mutex_unlock(&verrou);
+    pthread_mutex_unlock(&verrou_pollfd);
 
     free(userid);
 
@@ -709,60 +709,52 @@ int abonnement_fil(int userid){
         printf("Erreur côté serveur\n"); return -1;
     }
 
-    int sock_multicast = socket(AF_INET6, SOCK_DGRAM, 0);
-    if (sock_multicast < 0){
-        perror("Erreur socket @ abonnement_fil\n"); return -1;
+    int sock_multicast;
+    pthread_mutex_lock(&verrou_pollfd);
+    if(*tailledepoll == 0){
+        sock_multicast = socket(AF_INET6, SOCK_DGRAM, 0);
+        if (sock_multicast < 0){
+            pthread_mutex_unlock(&verrou_pollfd);
+            perror("Erreur socket @ abonnement_fil\n"); return -1;
+        }
+
+        int reuse = 1;
+        if (setsockopt(sock_multicast, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
+            perror("erreur option reuse addr @ abonnement_fil \n");
+        }
+
+        struct sockaddr_in6 grsock = {0};
+        grsock.sin6_family = AF_INET6;
+        grsock.sin6_addr = in6addr_any;
+        grsock.sin6_port = htons(PORT_MULTICAST);
+
+        if(bind(sock_multicast, (struct sockaddr * ) &grsock, sizeof(grsock)) < 0){
+            perror("Erreur bind @ abonnement_fil \n");
+        }
+
+    } else {
+        sock_multicast = notrepoll[0].fd;
     }
-
-    struct sockaddr_in6 grsock = {0};
-    grsock.sin6_family = AF_INET6;
-    grsock.sin6_addr = in6addr_any;
-    grsock.sin6_port = htons(PORT_MULTICAST);
-
-    int reuse = 1;
-    if (setsockopt(sock_multicast, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
-        perror("erreur option reuse addr @ abonnement_fil \n");
-    }
-
 
     struct ipv6_mreq group = {0};
-    printf("IPv6 reçue? %s \n", infos_ip->ip);
+    //printf("IPv6 reçue? %s \n", infos_ip->ip);
     inet_pton(AF_INET6, infos_ip->ip, &group.ipv6mr_multiaddr);
     group.ipv6mr_interface = 0;
 
     if (setsockopt(sock_multicast, IPPROTO_IPV6, IPV6_JOIN_GROUP, &group, sizeof(group)) < 0){
         perror("erreur option join group @ abonnement_fil \n");
     }
-    
-    int all = 0;
-    if ((setsockopt(sock_multicast, IPPROTO_IP, IP_MULTICAST_ALL, &all, sizeof(all))) < 0) {
-        perror("setsockopt() failed");
+
+    if(*tailledepoll == 0){
+        struct pollfd poll_specifique = {0};
+        poll_specifique.fd = sock_multicast;
+        poll_specifique.events = POLLIN;
+
+        notrepoll[0] = poll_specifique;
+
+        *tailledepoll = 1;
     }
-
-    if(bind(sock_multicast, (struct sockaddr * ) &grsock, sizeof(grsock)) < 0){
-        perror("Erreur bind @ abonnement_fil \n");
-    }
-
-
-    struct pollfd poll_specifique = {0};
-    poll_specifique.fd = sock_multicast;
-    poll_specifique.events = POLLIN;
-
-    printf("Socket ouverte pour le multicast? %d\n", sock_multicast);
-    pthread_mutex_lock(&verrou);
-
-    notrepoll = realloc(notrepoll, sizeof(struct pollfd) * ((*tailledepoll) + 1) );
-    if (notrepoll == NULL){
-        perror("Echec realloc @ abonnement_fil\n");
-    }
-    //notrepoll[*tailledepoll] = poll_specifique;
-    memcpy(notrepoll + (*tailledepoll), &poll_specifique, sizeof(struct pollfd));
-    int nouv_taille_poll = (*tailledepoll + 1);
-    memcpy(tailledepoll, &nouv_taille_poll, sizeof(int));
-    printf("Socket ouverte pour le multicast, dans la var globale? %d\n", (notrepoll[(*tailledepoll) - 1]).fd);
-    pthread_mutex_unlock(&verrou);
-    printf("tailledepol = %d\n", *tailledepoll);
-    printf("pointeur vers structure dans abonnement : %p\n", (void *)notrepoll);
+    pthread_mutex_unlock(&verrou_pollfd);
 
 
     printf("Abonné avec succès au fil %d\n", infos_ip->numfil);
@@ -777,57 +769,33 @@ void * thread_notifs(void * args){
 
     while(1){
 
-
-        pthread_mutex_lock(&verrou);
-        if(*tailledepoll == 0){ pthread_mutex_unlock(&verrou); continue; }
-        pthread_mutex_unlock(&verrou);
-
         sleep(5);
-        int compteur = 0;
-        pthread_mutex_lock(&verrou);
 
+        pthread_mutex_lock(&verrou_pollfd);
+        if(*tailledepoll == 0){ pthread_mutex_unlock(&verrou_pollfd); continue; }
 
+        if( (poll(notrepoll, *tailledepoll, 5000)) == 0) { pthread_mutex_unlock(&verrou_pollfd); continue; }
+            
+            if ((notrepoll[0].revents & POLLIN) == 0) continue;
+            if (notrepoll[0].revents & POLLIN){
+                //Alors ce descripteur est prêt pour la lecture;
 
-        if( (compteur = poll(notrepoll, *tailledepoll, 5000)) == 0) { pthread_mutex_unlock(&verrou); continue; }
-
-            printf("Socket ouverte pour le multicast, dans la var globale dans le thread? %d\n", (notrepoll[*tailledepoll]).fd);
-            printf("pointeur vers structure dans thread : %p\n", (void *)notrepoll);
-            //pthread_mutex_lock(&verrou);
-            for(int i = 0; i < (*tailledepoll); i++, compteur-- ){
-            printf("Hello : %d : %d\n", *tailledepoll, i);
-
-            if(compteur <= 0) break;
-            printf("compteur de poll : %d\n", compteur);
-
-                struct pollfd actuel;
-                memcpy(&actuel, notrepoll+i, sizeof(struct pollfd));
-                printf("SOCK ACTUEL = %d\n", actuel.fd);
-                printf("PRET EN LECTURE???? : %d\n", (actuel.revents));
-
-                if ((actuel.revents & POLLIN) == 0) continue;
-                if (actuel.revents & POLLIN){
-                    //Alors ce descripteur est prêt pour la lecture;
-
-                    u_int16_t buf[SIZE_MSG_NOTIF] = {0};
-                    if (read(actuel.fd, buf, SIZE_MSG_NOTIF) <= 0){
-                        perror("Read sur descripteur de notif\n");
-                    }
-
-                    msg_notif * msg_a_afficher = udp_to_msg_notif(buf);
-
-                    printf("\nNotif fil %d : %s - %s \n", msg_a_afficher->numfil, msg_a_afficher->data, msg_a_afficher->pseudo);
-                    notrepoll[i].revents = 0;
-
-                    free(msg_a_afficher->pseudo);
-                    free(msg_a_afficher->data);
-                    free(msg_a_afficher);                    
+                u_int16_t buf[SIZE_MSG_NOTIF] = {0};
+                if (read(notrepoll[0].fd, buf, SIZE_MSG_NOTIF) <= 0){
+                    perror("Read sur descripteur de notif\n");
                 }
+
+                msg_notif * msg_a_afficher = udp_to_msg_notif(buf);
+
+                printf("\nNotif fil %d : %s - %s \n", msg_a_afficher->numfil, msg_a_afficher->data, msg_a_afficher->pseudo);
+                notrepoll[0].revents = 0;
+
+                free(msg_a_afficher->pseudo);
+                free(msg_a_afficher->data);
+                free(msg_a_afficher);                    
             }
-            pthread_mutex_unlock(&verrou);
-
+        pthread_mutex_unlock(&verrou_pollfd);
     }
-
-    return NULL;
 }
 
 int get_n_billets(int userid){

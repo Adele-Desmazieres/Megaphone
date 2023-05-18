@@ -190,11 +190,9 @@ void * gestion_notifications(void * arg){
 
                 if(tmp_bil->is_new){
 
-                    msg_notif to_snd = { .codereq = 4, .id = 0, .numfil = tmp->id, .pseudo = tmp_bil->auteur, .data = tmp_bil->texte};
+                    msg_notif to_snd = { .codereq = 4, .id = 0, .numfil = tmp->id+1, .pseudo = tmp_bil->auteur, .data = tmp_bil->texte};
                     u_int16_t * buf = msg_notif_to_udp(to_snd);
 
-
-                    printf("SOCK OU ON ENVOIE : %d\n", tmp->multicast_sockfd);
                     if ((sendto(tmp->multicast_sockfd, buf, SIZE_MSG_NOTIF, 0, (struct sockaddr *)tmp->sockopt, sizeof(struct sockaddr_in6))) < 0){
                         perror("Erreur notification @ poster_billet \n");
                     }
@@ -539,7 +537,7 @@ void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * b
 
         struct sockaddr_in6 grsock = {0};
         grsock.sin6_family = AF_INET6;
-        printf("Adresse IP de multicast envoyée : %s\n", f->multicast_addr);
+        //printf("Adresse IP de multicast envoyée : %s\n", f->multicast_addr);
         inet_pton(AF_INET6, f->multicast_addr, &grsock.sin6_addr);
         grsock.sin6_port = htons(PORT_MULTICAST);
 
