@@ -21,8 +21,11 @@
 //Valeur à part car modifiables à guises
 #define PORT_UDP 2121
 #define BUF_SIZE_UDP 512
+#define NOTIF_WAIT_TIME 20
 
 char * last_used_multicast_ip = FIRST_MULTICAST_IP;
+int * messages_for_notif = 0;
+pthread_mutex_t ver_notif_count = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_mutex_t ver_lu = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t ver_lf = PTHREAD_MUTEX_INITIALIZER;
@@ -121,6 +124,12 @@ int accepter_clients(int sock) {
     user_list * liste_users = user_list_constr();
     liste_fils * liste_fil = liste_fils_constr();
 
+    pthread_t thread_envoi_notifs;
+    if(pthread_create(&thread_envoi_notifs, NULL, gestion_notifications, liste_fil) == -1){
+            perror("Echec création thread cote serveur\n");
+            return -1;
+    }
+
     //Boucle principale
     while(serveur_running){
 
@@ -149,6 +158,59 @@ int accepter_clients(int sock) {
     free_userlist(liste_users);
 
     return 0;
+}
+
+/*
+    Thread pour gérer l'envoi des notifications multicast
+*/
+
+void * gestion_notifications(void * arg){
+
+    liste_fils * lf = (liste_fils *)arg;
+
+    while(1){
+
+        //On attend àchaque notif pour ne pas en envoyer trop souvent
+        sleep(NOTIF_WAIT_TIME);
+        pthread_mutex_lock(&ver_notif_count);
+        pthread_mutex_lock(&ver_lf);
+
+        //Si il n'y a pas de nouveau message, alors il est inutile de parcourir la liste de fils
+        if(messages_for_notif == 0){
+            pthread_mutex_unlock(&ver_lf);
+            pthread_mutex_unlock(&ver_notif_count);
+            continue;
+        }
+        pthread_mutex_unlock(&ver_notif_count);
+
+        //Sinon, on parcourt chaque fil et on envoie les messages marqués comme nouveaux
+        for(fil * tmp = lf->premier_fil; tmp != NULL; tmp = tmp->suiv){
+
+            for (billet * tmp_bil = tmp->premier_msg; tmp_bil != NULL; tmp_bil = tmp_bil->suiv){
+
+                if(tmp_bil->is_new){
+
+                    msg_notif to_snd = { .codereq = 4, .id = 0, .numfil = tmp->id, .pseudo = tmp_bil->auteur, .data = tmp_bil->texte};
+                    u_int16_t * buf = msg_notif_to_udp(to_snd);
+
+
+                    printf("SOCK OU ON ENVOIE : %d\n", tmp->multicast_sockfd);
+                    if ((sendto(tmp->multicast_sockfd, buf, SIZE_MSG_NOTIF, 0, (struct sockaddr *)tmp->sockopt, sizeof(struct sockaddr_in6))) < 0){
+                        perror("Erreur notification @ poster_billet \n");
+                    }
+
+                    free(buf);
+                    //On oublie pas d'enlever le marqueur nouveau au message envoyé
+                    tmp_bil->is_new = 0;
+                }
+
+            }
+
+        }
+        pthread_mutex_unlock(&ver_lf);
+
+    }
+
 }
 
 /*
@@ -316,21 +378,15 @@ int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * 
             pthread_mutex_unlock(&ver_lf);
             return -1;  
         } 
-        ajouter_billet(fil_poster, username, contenu);
+        ajouter_billet(fil_poster, username, contenu, fil_poster->is_multicast);
 
-        //Pour le multicast, on envoie une notif si le fil est en abonnement
+        //Pour le multicast, on incrémente le nombre de message à envoyer à la prochaine notification
         if (fil_poster->is_multicast){
-            msg_notif to_snd = { .codereq = 4, .id = 0, .numfil = fil_poster->id+1, .pseudo = username, .data = contenu};
-            u_int16_t * buf = msg_notif_to_udp(to_snd);
 
+            pthread_mutex_lock(&ver_notif_count);
+            messages_for_notif++;
+            pthread_mutex_unlock(&ver_notif_count);
 
-            printf("SOCK OU ON ENVOIE : %d\n", fil_poster->multicast_sockfd);
-            if ((sendto(fil_poster->multicast_sockfd, buf, SIZE_MSG_NOTIF, 0, (struct sockaddr *)fil_poster->sockopt, sizeof(struct sockaddr_in6))) < 0){
-                perror("Erreur notification @ poster_billet \n");
-            }
-
-
-            free(buf);
         }
         pthread_mutex_unlock(&ver_lf);
     }

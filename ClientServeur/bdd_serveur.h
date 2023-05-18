@@ -6,6 +6,7 @@ typedef struct billet billet;
 typedef struct billet {
     char * texte;
     char * auteur;
+    int is_new;
     billet * prec;
     billet * suiv;
 } billet;
@@ -54,11 +55,11 @@ typedef struct user_list {
 
 } user_list;
 
-billet * billet_constr(char * auteur, char * texte);
+billet * billet_constr(char * auteur, char * texte, int is_new_for_notif);
 
 fil * fil_constr(char * auteur, char * texte);
 fil * get_fil_id(liste_fils * l, int numfil);
-void ajouter_billet(fil * f, char * auteur, char * texte);
+void ajouter_billet(fil * f, char * auteur, char * texte, int is_new_for_notif);
 billet * get_n_derniers_billets(fil * f, int n);
 billet * get_n_derniers_billets_from_id(liste_fils * l ,int id, int n);
 int does_file_exist_fil(fil * f, char * file_name);

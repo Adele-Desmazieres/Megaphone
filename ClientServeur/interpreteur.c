@@ -724,9 +724,6 @@ int abonnement_fil(int userid){
         perror("erreur option reuse addr @ abonnement_fil \n");
     }
 
-    if(bind(sock_multicast, (struct sockaddr * ) &grsock, sizeof(grsock)) < 0){
-        perror("Erreur bind @ abonnement_fil \n");
-    }
 
     struct ipv6_mreq group = {0};
     printf("IPv6 reçue? %s \n", infos_ip->ip);
@@ -736,6 +733,16 @@ int abonnement_fil(int userid){
     if (setsockopt(sock_multicast, IPPROTO_IPV6, IPV6_JOIN_GROUP, &group, sizeof(group)) < 0){
         perror("erreur option join group @ abonnement_fil \n");
     }
+    
+    int all = 0;
+    if ((setsockopt(sock_multicast, IPPROTO_IP, IP_MULTICAST_ALL, &all, sizeof(all))) < 0) {
+        perror("setsockopt() failed");
+    }
+
+    if(bind(sock_multicast, (struct sockaddr * ) &grsock, sizeof(grsock)) < 0){
+        perror("Erreur bind @ abonnement_fil \n");
+    }
+
 
     struct pollfd poll_specifique = {0};
     poll_specifique.fd = sock_multicast;

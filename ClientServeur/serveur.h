@@ -49,4 +49,7 @@ int fichier_existe_bdd(msg_client * msg_client, liste_fils * liste_fils);
 //Envoie les données du fichier en parametre vers le numéro de port du client qui l'a demandé.
 int envoyer_donnees_fichier_serveur(int port, char * file_name);
 
+//gère l'envoi des notifs multicast sur un temps défini
+void * gestion_notifications(void * arg);
+
 #endif

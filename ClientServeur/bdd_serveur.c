@@ -15,12 +15,13 @@
 
 //CONSTRUIS UN BILLET, THEORIQUEMENT INTERNE
 
-billet * billet_constr(char * auteur, char * texte){
+billet * billet_constr(char * auteur, char * texte, int is_new_for_notif){
 
     billet * ret = malloc(sizeof(billet));
     if(ret == NULL) perror("malloc billet");
     ret->suiv = NULL;
     ret->prec = NULL;
+    ret->is_new = is_new_for_notif;
 
     ret->texte = malloc((strlen(texte) + 1) * sizeof(char));
     if(ret->texte == NULL) perror("malloc billet");
@@ -46,7 +47,7 @@ fil * fil_constr(char * auteur, char * texte){
     if(ret == NULL) perror("malloc fil");
 
     
-    ret->premier_msg = billet_constr(auteur, texte);
+    ret->premier_msg = billet_constr(auteur, texte, 0);
     ret->nb_de_msg = 1;
 
     ret->suiv = NULL;
@@ -118,13 +119,13 @@ int ajouter_fil(liste_fils * l, fil * f) {
 
 //AJOUTE UN BILLET (AUTEUR, TEXTE) A UN FIL F
 
-void ajouter_billet(fil * f, char * auteur, char * texte){
+void ajouter_billet(fil * f, char * auteur, char * texte, int is_new_for_notif){
 
     billet * billet_tmp = f->premier_msg;
 
     while(billet_tmp->suiv != NULL) billet_tmp = billet_tmp->suiv;
 
-    billet * nouv = billet_constr(auteur, texte);
+    billet * nouv = billet_constr(auteur, texte, is_new_for_notif);
 
     billet_tmp->suiv = nouv;
     nouv->prec = billet_tmp;
