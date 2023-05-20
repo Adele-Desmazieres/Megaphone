@@ -611,9 +611,7 @@ int recevoir_donnees_fichier_serveur(msg_client * msg_client, liste_fils * liste
     contenu_billet[sz_of_name] = ' ';
     strncpy(contenu_billet + sz_of_name + 1, taille_nom_fic, sz_file_length);
 
-    pthread_mutex_lock(&ver_lf);
     poster_billet(msg_client, liste_fils, liste_utili, contenu_billet);
-    pthread_mutex_unlock(&ver_lf);
     
     return 0;
 }

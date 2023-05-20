@@ -769,8 +769,6 @@ void * thread_notifs(void * args){
 
     while(1){
 
-        sleep(5);
-
         pthread_mutex_lock(&verrou_pollfd);
         if(*tailledepoll == 0){ pthread_mutex_unlock(&verrou_pollfd); continue; }
 
