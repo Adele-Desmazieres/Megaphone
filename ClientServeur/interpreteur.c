@@ -25,11 +25,21 @@
 
 pthread_mutex_t verrou_pollfd = PTHREAD_MUTEX_INITIALIZER;
 
+int v4 = 0;
+
 struct pollfd * notrepoll;
 int * tailledepoll;
 
 int main(int argc, char **argv)
 {
+
+    if (argc > 2){
+        printf("Invalid arguments\n");
+        return -1;
+    }
+
+    if (strcmp(argv[1], "-4") == 0) v4 = 1;
+
     notrepoll = malloc(sizeof(struct pollfd));
     tailledepoll = malloc(sizeof(int));
     int pollinit = 0;
@@ -159,7 +169,7 @@ int inscription(int *userid)
     u_int16_t *marray = msg_client_to_send(mstruct);
 
     // envoie le message
-    int sock = connexion_6();
+    int sock = (v4) ? connexion_4() : connexion_6();
     if (sock == -1) {
         free(marray);
         return -1;
@@ -406,7 +416,7 @@ int poster_billet_client(int *userid)
     u_int16_t *marray = msg_client_to_send(mstruct);
 
     // l'envoie
-    int sock = connexion_6();
+    int sock = (v4) ? connexion_4() : connexion_6();
     if (sock == -1) {
         free(marray);
         return -1;
@@ -488,7 +498,7 @@ int envoyer_donnees_fichier_client(int *userid) {
     u_int16_t *marray = msg_client_to_send(mstruct);
 
     // l'envoie
-    int sock = connexion_6();
+    int sock = (v4) ? connexion_4() : connexion_6();
     if (sock == -1) {
         free(marray);
         return -1;
@@ -575,7 +585,7 @@ int recevoir_donnees_fichier_client(int *userid) {
     u_int16_t *marray = msg_client_to_send(mstruct);
 
     // l'envoie
-    int sock = connexion_6();
+    int sock = (v4) ? connexion_4() : connexion_6();
     if (sock == -1) { free(marray); return -1; }
     
     int msglen = n + ENTETE_LEN;
@@ -674,7 +684,7 @@ int envoyer_serveur_udp_adr(struct sockaddr_in6 servadr, int sock) {
 
 int abonnement_fil(int userid){
 
-    int sockfd = connexion_6();
+    int sockfd = (v4) ? connexion_4() : connexion_6();
     if(sockfd < 0){
         perror("Erreur de connexion @ abonnement_fil\n");
         return -1;
@@ -798,9 +808,9 @@ void * thread_notifs(void * args){
 
 int get_n_billets(int userid){
 
-    int sockfd = connexion_6();
+    int sockfd = (v4) ? connexion_4() : connexion_6();
     if(sockfd < 0){
-        perror("connexion_6 @ get_n_billets \n");
+        perror("connexion_4 @ get_n_billets \n");
     }
 
     char *num_input;
