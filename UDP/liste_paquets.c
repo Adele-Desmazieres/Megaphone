@@ -9,11 +9,14 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <sys/stat.h>
-#include <fcntl.h> 
+#include <fcntl.h>
+#include <time.h>
+#include <errno.h>
 
 #include "liste_paquets.h"
 
 #define SIZE_PAQ 512
+#define TEMPS_PAQ 100
 
 paquet * paquet_constr(int codereq, int id, int numbloc, char * data, paquet * prev, paquet * next) {
     paquet * paq = malloc(sizeof(paquet));
@@ -178,6 +181,12 @@ int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, i
 
     //On lit les données de notre fichier, transforme en msg uint16 et on envoie.
     while (strlen(read_buff) > 0) {
+        //On attends un peu de temps avant l'envoi de chaque paquets
+        struct timespec time_spec;
+        time_spec.tv_sec = TEMPS_PAQ / 1000;
+        time_spec.tv_nsec = (TEMPS_PAQ % 1000) * 1000000;
+        nanosleep(&time_spec, &time_spec);
+
         paquet paq = {5, codereq, numbloc, read_buff};
         size_t len_paq = get_taille_msg_udp(paq);
         u_int16_t * msg = paquet_to_udp(len_paq, paq);
@@ -220,7 +229,7 @@ int recevoir_donnees_fichier(int sock, char * file_name, int directory_client) {
 
     int taille_msg_udp = sizeof(u_int16_t) * (2 + (512)/2);
     u_int16_t buff[taille_msg_udp];
-    memset(buff, 0, sizeof(buff));
+    memset(buff, '\0', sizeof(buff));
 
     int r = taille_msg_udp;
 
