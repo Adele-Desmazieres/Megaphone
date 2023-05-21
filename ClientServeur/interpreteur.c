@@ -305,6 +305,8 @@ int interpreteur_utilisateur(int *userid)
     }
 
     pthread_mutex_lock(&verrou_pollfd);
+
+    if(tailledepoll) close(notrepoll->fd);
     free(notrepoll);
     free(tailledepoll);
     pthread_mutex_unlock(&verrou_pollfd);
@@ -525,6 +527,8 @@ int get_n_billets(int userid){
         free(billet_recu);
 
     }
+
+    close(sockfd);
 
     return 0;
 }
