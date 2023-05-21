@@ -7,12 +7,12 @@
 #include <ctype.h>
 #include "../ClientServeur/bdd_serveur.h"
 
+//Transforme un msg_demande_abo en buffer prêt pour l'envoi réseau
 u_int16_t * msg_abo_to_tcp(msg_demande_abo msg){
 
     u_int16_t * ret = malloc(SIZE_MSG_ABO);
     if(ret == NULL) perror(" Erreur malloc @ msg_abo_to_tcp\n");
 
-    //printf("Adresse de multicast envoyée : %s \n codereq? %d \n id? %d \n numfil? %d\n nb (port)? %d\n", msg.ip, msg.codereq, msg.id, msg.numfil, msg.nb)
     //CODEREQ | ID
     ret[0] = htons((msg.id << 5) + msg.codereq);
 
@@ -31,6 +31,7 @@ u_int16_t * msg_abo_to_tcp(msg_demande_abo msg){
 
 }
 
+//Renvoie un msg_demande_abo alloué sur le tas, en lisant directement depuis le sockfd spécifié
 msg_demande_abo * tcp_to_msg_abo(int sockfd){
 
     msg_demande_abo * ret = malloc(sizeof(msg_demande_abo));
@@ -54,7 +55,6 @@ msg_demande_abo * tcp_to_msg_abo(int sockfd){
         perror("recv @ tcp_to_msg_abo \n");
     }
 
-
     ret->numfil = ntohs(oct[0]);
     ret->nb = ntohs(oct[1]);
 
@@ -65,12 +65,10 @@ msg_demande_abo * tcp_to_msg_abo(int sockfd){
 
     inet_ntop(AF_INET6, &adr, ret->ip, 40);
 
-    //printf("Adresse de multicast reçue : %s \n codereq? %d \n id? %d \n numfil? %d\n nb (port)? %d\n", ret->ip, ret->codereq, ret->id, ret->numfil, ret->nb);
-
-
     return ret;
 }
 
+//Transforme un msg_notif en buffer prêt pour l'envoi réseau
 u_int16_t * msg_notif_to_udp(msg_notif msg){
 
     u_int16_t * ret = malloc(SIZE_MSG_NOTIF);
@@ -99,6 +97,7 @@ u_int16_t * msg_notif_to_udp(msg_notif msg){
 
 }
 
+//Transforme un buffer reçu en msg_notif alloué sur le tas
 msg_notif * udp_to_msg_notif(u_int16_t * oct){
 
     msg_notif * ret = (malloc (sizeof(msg_notif)));
@@ -119,12 +118,14 @@ msg_notif * udp_to_msg_notif(u_int16_t * oct){
 
 }
 
+//Libère un msg_notif alloué sur le tas
 void free_msg_notif(msg_notif * msg){
     free(msg->pseudo);
     free(msg->data);
     free(msg);
 }
 
+//Incrémente le caractère src (correspondant à un hexadécimal)
 char incr_hexchar(char src){
     if (isdigit(src)){
         if(src - '0' == 9) return 'a';
@@ -143,6 +144,7 @@ char incr_hexchar(char src){
     }
 }
 
+//Renvoie une chaîne de caractère allouée sur le tas correspondant à l'adresse "ip" (IPv6) incrémentée de 1
 char * incr_ip(char * ip){
 
     char * ret = malloc(40);
@@ -166,21 +168,4 @@ char * incr_ip(char * ip){
         free(ret); return NULL;
 
 }
-
-/*
-int main(void){
-    msg_notif test = {.codereq = 1, .id = 0, .numfil = 0, .pseudo = "LUZog", .data = "salu"};
-    msg_notif * test2 = udp_to_msg_notif(msg_notif_to_udp(test));
-    printf("CODEREQ == 1 ? %d \n", test2->codereq ); 
-    printf("PSEUDO == LUZog ? %s \n", test2->pseudo ); 
-    printf("DATA == salu %s \n", test2->data);
-
-
-    free_msg_notif(test2);
-
-
-
-    printf("Ip incr : %s", incr_ip("ff12:0000:0000:0000:0000:0000:0000:0001"));
-}
-*/
 

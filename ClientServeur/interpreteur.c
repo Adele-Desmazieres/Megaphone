@@ -38,7 +38,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    if (strcmp(argv[1], "-4") == 0) v4 = 1;
+    if (argc == 2 && strcmp(argv[1], "-4") == 0) v4 = 1;
 
     notrepoll = malloc(sizeof(struct pollfd));
     tailledepoll = malloc(sizeof(int));

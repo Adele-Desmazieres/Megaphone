@@ -125,8 +125,6 @@ void ajouter_billet(fil * f, char * auteur, char * texte, int is_new_for_notif){
 
     f->nb_de_msg++;
 
-    printf("TEXTE DU BILLET : %s\n", texte);
-
     return;
 
 }
