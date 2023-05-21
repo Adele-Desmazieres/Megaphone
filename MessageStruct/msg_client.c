@@ -9,13 +9,7 @@
 
 #include "msg_client.h"
 
-void print_2bytes(char* bytes){
-    for(int i = 0; i < 16; i++){
-        printf("%c", bytes[i]);
-    }
-    printf("\n");
-}
-
+//Constructeur pour la structure message client, pointeur alloué
 msg_client* msg_client_constr(int codereq, int id, int numfil, int nb, int datalen, char* data, int is_inscript){
     msg_client *ret = malloc(sizeof(msg_client));
     if(ret == NULL){
@@ -103,11 +97,17 @@ int lire_data_depuistcp(int sockfd, msg_client * msg, int datalen){
     char * buf = malloc(sizeof(char) * (datalen+1) );
     memset(buf, 0, datalen+1);
 
-    int recu = recv(sockfd, buf, datalen, 0);
+    int recu = 0;
 
-    if(recu <= 0) {
-        close(sockfd);
-        return -1;
+    while(recu < datalen){
+        int recuTmp = recv(sockfd, buf + recu, datalen, 0);
+
+        if(recuTmp <= 0) {
+            close(sockfd);
+            return -1;
+        }
+
+        recu += recuTmp;
     }
 
     buf[datalen] = '\0';
@@ -192,14 +192,3 @@ u_int16_t * msg_client_to_send(msg_client struc){
     }
     return msg; 
 }
-
-//Elimine les # en fin de chaine, alloue la valeur de retour
-char * get_real_name_client(const char * placeholder){
-    int i = 0;
-    for(; *placeholder != '\0' && *placeholder != '#'; placeholder++, i++){}
-    char * ret = malloc(sizeof(char) * (i+1));
-    strncat(ret, placeholder-i, i);
-
-    return ret;
-}
-

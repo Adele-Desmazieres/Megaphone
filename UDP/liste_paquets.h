@@ -37,12 +37,15 @@ void free_paquet(paquet * paq);
 void free_liste_paquets(liste_paquets * liste);
 
 //Envoie les données d'un fichier à la sock passée en parametre ainsi que l'adrudp et le port.
-int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, int port, char * file_name);
+int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, int port, char * file_name, int directory_client);
 
 //Recoit les données d'un fichier à la sock passée en parametre.
-int recevoir_donnees_fichier(int sock, char * file_name);
+int recevoir_donnees_fichier(int sock, char * file_name, int directory_client);
 
 //Ecrit les données de tous les paquets dans un fichier.
-int ecrire_dans_fichier_udp(char * file_name, liste_paquets * liste_paq);
+int ecrire_dans_fichier_udp(char * file_name, liste_paquets * liste_paq, int directory_client);
+
+//En fonction de directory_client renvoie le nom du fichier agrémenté du prefixe "FicClient/" ou "FicServ/"
+char * get_directory_file(char * file_name, int directory_client);
 
 #endif

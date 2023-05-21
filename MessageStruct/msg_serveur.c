@@ -9,6 +9,7 @@
 
 #include "msg_serveur.h"
 
+//Construit une structure message serveur allouée sur le tas
 msg_serveur * msg_serveur_constr(int codereq, int id, int numfil, int nb){
     msg_serveur * ret = malloc(sizeof(msg_serveur));
     if(ret == NULL){
@@ -24,7 +25,7 @@ msg_serveur * msg_serveur_constr(int codereq, int id, int numfil, int nb){
     return ret;
 }
 
-//Transforme un struct msg_client en un "message" pour TCP
+//Transforme un struct msg_client en un buffer prêt pour l'envoi réseau
 uint16_t * msg_serveur_to_send(msg_serveur struc){
 
     //Taille: 6 octets si inscription sinon, dépend de la taille du texte
@@ -44,9 +45,9 @@ uint16_t * msg_serveur_to_send(msg_serveur struc){
     return msg; 
 }
 
+//Transforme un buffer réseau reçu en structure msg_serveur
 msg_serveur tcp_to_msgserveur(uint16_t * msg) {
 
-    //ENTETE
     //CODEREQ | ID
     uint16_t entete = ntohs(msg[0]);
     int id = (entete >> 5);
@@ -62,15 +63,11 @@ msg_serveur tcp_to_msgserveur(uint16_t * msg) {
 
 //Transforme un message représentant un billet en message TCP
 uint16_t * msg_billet_to_send(msg_billet_envoi struc){
-    uint16_t * ret = malloc(24 + (strlen(struc.data ) - 1));
 
+    uint16_t * ret = malloc(24 + (strlen(struc.data ) - 1));
 
     //NUMFIL
     ret[0] = htons(struc.numfil);
-    /*printf("Test numfil envoi: %d\n", struc.numfil);
-    printf("Test origine envoi : %s\n", struc.origine);
-    printf("Test pseudo envoi : %s\n", struc.pseudo);
-    printf("Test datalen envoi : %d\n", struc.datalen);*/
 
     memcpy(ret + 1, struc.origine, 10);
 
@@ -84,6 +81,7 @@ uint16_t * msg_billet_to_send(msg_billet_envoi struc){
     return ret;
 }
 
+//Renvoie une structure msg_billet_envoi en lisant directement depuis le sockfd spécifié
 msg_billet_envoi * tcp_to_msgbillet(int sockfd){
 
     msg_billet_envoi * ret = malloc(sizeof(msg_billet_envoi));
@@ -101,8 +99,6 @@ msg_billet_envoi * tcp_to_msgbillet(int sockfd){
 
     //NUMFIL
     ret->numfil = ntohs(oct[0]);
-    //printf("Test numfil : %d\n", ret->numfil);
-
 
     //ORIGINE
     char * origine = malloc(11);
@@ -116,7 +112,6 @@ msg_billet_envoi * tcp_to_msgbillet(int sockfd){
     }
 
     origine[10] = '\0';
-    //printf("Test origine : %s\n", origine);
 
     ret->origine = origine;
 
@@ -135,7 +130,6 @@ msg_billet_envoi * tcp_to_msgbillet(int sockfd){
     ret->pseudo = pseudo;
 
     //DATALEN
-    
     u_int8_t dtlen[1];
     memset(dtlen, 0, 1);
 
@@ -155,16 +149,23 @@ msg_billet_envoi * tcp_to_msgbillet(int sockfd){
     memset(buf, 0, datalen+1);
 
     //On recoit les prochains octets restants pour data
-    recu = recv(sockfd, buf, datalen, 0);
 
-    if(recu <= 0) {
-        return NULL;
+    recu = 0;
+    while(recu < datalen){
+
+        int recuTmp;
+        recuTmp = recv(sockfd, buf + recu, datalen, 0);
+
+        if(recuTmp <= 0) {
+            return NULL;
+        }
+
+        recu += recuTmp;
     }
 
     buf[datalen] = '\0';
 
     ret->data = buf;
 
-    //printf("Test pseudo : %s\n", ret->pseudo);
     return ret;
 }

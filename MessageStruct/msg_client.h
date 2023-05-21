@@ -11,10 +11,13 @@ typedef struct msg_client {
     int is_inscript; 
 } msg_client;
 
-void print_2bytes(char* bytes);
+//Constructeur pour la structure msg_client, renvoie un pointeur
 msg_client * msg_client_constr(int codereq, int id, int numfil, int nb, int datalen, char * data, int is_inscript);
+
+//Transforme une structure msg_client en buffer prêt pour l'envoi réseau
 u_int16_t * msg_client_to_send(msg_client struc);
-char * get_real_name_client(const char * placeholder);
+
+//Renvoie une structure msg_client allouée, en lisant directement depuis le sockfd spécifié
 msg_client * tcp_to_msgclient(int sockfd);
 
 #endif

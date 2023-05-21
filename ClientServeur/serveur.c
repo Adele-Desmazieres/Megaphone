@@ -21,9 +21,15 @@
 //Valeur à part car modifiables à guises
 #define PORT_UDP 2121
 #define BUF_SIZE_UDP 512
+#define NOTIF_WAIT_TIME 20
 
 char * last_used_multicast_ip = FIRST_MULTICAST_IP;
+int * messages_for_notif = 0;
+pthread_mutex_t ver_notif_count = PTHREAD_MUTEX_INITIALIZER;
 
+pthread_mutex_t ver_lu = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t ver_lf = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t ver_fic = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char **argv) {
     last_used_multicast_ip = malloc(40);
@@ -31,6 +37,9 @@ int main(int argc, char **argv) {
     return creation_serveur();
 }
 
+/*
+    Constructeur pour la base de donnée serveur
+*/
 base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int sockli) {
     base_serveur * ret = malloc(sizeof(base_serveur));
     if (ret == NULL) perror("Erreur malloc objets thread structure\n");
@@ -118,6 +127,12 @@ int accepter_clients(int sock) {
     user_list * liste_users = user_list_constr();
     liste_fils * liste_fil = liste_fils_constr();
 
+    pthread_t thread_envoi_notifs;
+    if(pthread_create(&thread_envoi_notifs, NULL, gestion_notifications, liste_fil) == -1){
+            perror("Echec création thread cote serveur\n");
+            return -1;
+    }
+
     //Boucle principale
     while(serveur_running){
 
@@ -149,6 +164,56 @@ int accepter_clients(int sock) {
 }
 
 /*
+    Thread pour gérer l'envoi des notifications multicast
+*/
+void * gestion_notifications(void * arg){
+
+    liste_fils * lf = (liste_fils *)arg;
+
+    while(1){
+
+        //On attend àchaque notif pour ne pas en envoyer trop souvent
+        sleep(NOTIF_WAIT_TIME);
+        pthread_mutex_lock(&ver_notif_count);
+        pthread_mutex_lock(&ver_lf);
+
+        //Si il n'y a pas de nouveau message, alors il est inutile de parcourir la liste de fils
+        if(messages_for_notif == 0){
+            pthread_mutex_unlock(&ver_lf);
+            pthread_mutex_unlock(&ver_notif_count);
+            continue;
+        }
+        pthread_mutex_unlock(&ver_notif_count);
+
+        //Sinon, on parcourt chaque fil et on envoie les messages marqués comme nouveaux
+        for(fil * tmp = lf->premier_fil; tmp != NULL; tmp = tmp->suiv){
+
+            for (billet * tmp_bil = tmp->premier_msg; tmp_bil != NULL; tmp_bil = tmp_bil->suiv){
+
+                if(tmp_bil->is_new){
+
+                    msg_notif to_snd = { .codereq = 4, .id = 0, .numfil = tmp->id+1, .pseudo = tmp_bil->auteur, .data = tmp_bil->texte};
+                    u_int16_t * buf = msg_notif_to_udp(to_snd);
+
+                    if ((sendto(tmp->multicast_sockfd, buf, SIZE_MSG_NOTIF, 0, (struct sockaddr *)tmp->sockopt, sizeof(struct sockaddr_in6))) < 0){
+                        perror("Erreur notification @ poster_billet \n");
+                    }
+
+                    free(buf);
+                    //On oublie pas d'enlever le marqueur nouveau au message envoyé
+                    tmp_bil->is_new = 0;
+                }
+
+            }
+
+        }
+        pthread_mutex_unlock(&ver_lf);
+
+    }
+
+}
+
+/*
     Effectue la communication entre le serveur et le/les clients.
 */
 void * communication_client(void * arg_base_serveur) {
@@ -175,7 +240,7 @@ void * communication_client(void * arg_base_serveur) {
             else {
                 msg_serveur to_send = {1, retour, 0, 0};
                 envoie_reponse_client(sockcli, to_send);
-            } 
+            }
             close(sockcli);
             break;
         //L'utilisateur veut poster un billet.
@@ -243,6 +308,9 @@ void * communication_client(void * arg_base_serveur) {
     return NULL;
 }
 
+/*
+    Envoie un message d'erreur avec pour code 31 au client.
+*/
 void envoi_erreur_client(int sockcli) {
     msg_serveur message_erreur = {31, 0, 0, 0};
     uint16_t * msg_reponse = msg_serveur_to_send(message_erreur);
@@ -255,6 +323,9 @@ void envoi_erreur_client(int sockcli) {
     free(msg_reponse);
 }
 
+/*
+    Transforme un objet msg_serveur en uint16 puis l'envoie au client.
+*/
 void envoie_reponse_client(int sockcli, msg_serveur reponse_serveur) {
     uint16_t * msg_reponse = msg_serveur_to_send(reponse_serveur);
 
@@ -266,55 +337,75 @@ void envoie_reponse_client(int sockcli, msg_serveur reponse_serveur) {
     free(msg_reponse);
 }
 
-//Fonction qui permet à l'utilisateur de s'inscrire. Renvoie l'identifiant de l'utilisateur
-//en cas de succès.
+/*
+    Permet à l'utilisateur de s'inscrire. Renvoie l'identifiant de l'utilisateur en cas de succès.
+*/
 int inscription_utili(msg_client * msg_client, user_list * liste_utili) {
 
+    pthread_mutex_lock(&ver_lu);
     int r = add_user(liste_utili, msg_client -> data);
-    if (r == 0) return -1;
-    return get_id(liste_utili, msg_client -> data);
+    if (r == 0) r = -1;
+    else r = get_id(liste_utili, msg_client -> data);
+    pthread_mutex_unlock(&ver_lu);
+    return r;
 }
 
-//Fonction qui permet de poster un billet dans un fil passé en parametre du message. Renvoie le numéro 
-//du fil ou le billet a été posté en cas de succès.
+/*
+    Permet de poster un billet dans un fil passé en parametre du message. Renvoie le numéro 
+    du fil ou le billet a été posté en cas de succès.
+*/
 int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * contenu) {
     int num_fil = msg_client -> numfil;
 
     //Si num_fil vaut 0 alors l'utilisateur cherche à poster sur un nouveau fil avec pseudo et texte.
     if (msg_client -> numfil == 0) {
+
+        pthread_mutex_lock(&ver_lu);
         char * username = get_name(liste_utili, msg_client -> id);
+        pthread_mutex_unlock(&ver_lu);
+
         
         fil * nouveau_fil = fil_constr(username, contenu);
         if (nouveau_fil == NULL) { perror("Erreur creation de fil\n."); return 1; }
+        pthread_mutex_lock(&ver_lf);
         num_fil = ajouter_fil(liste_fils, nouveau_fil);
+        pthread_mutex_unlock(&ver_lf);
+
     }
 
     //Sinon on cherche ou il veut poster puis on ajoute le billet à cet endroit.
     else {
+
+        pthread_mutex_lock(&ver_lu);
         char * username = get_name(liste_utili, msg_client -> id);
+        pthread_mutex_unlock(&ver_lu);
+
+        pthread_mutex_lock(&ver_lf);
         fil * fil_poster = get_fil_id(liste_fils, msg_client -> numfil);
         //Le fil que l'utilisateur a voulu selectionner n'existe pas.
-        if (fil_poster == NULL) return -1;
-        ajouter_billet(fil_poster, username, contenu);
+        if (fil_poster == NULL){
+            pthread_mutex_unlock(&ver_lf);
+            return -1;  
+        } 
+        ajouter_billet(fil_poster, username, contenu, fil_poster->is_multicast);
 
-        //Pour le multicast, on envoie une notif si le fil est en abonnement
+        //Pour le multicast, on incrémente le nombre de message à envoyer à la prochaine notification
         if (fil_poster->is_multicast){
-            msg_notif to_snd = { .codereq = 4, .id = 0, .numfil = fil_poster->id+1, .pseudo = username, .data = contenu};
-            u_int16_t * buf = msg_notif_to_udp(to_snd);
 
-            printf("SOCK OU ON ENVOIE : %d\n", fil_poster->multicast_sockfd);
+            pthread_mutex_lock(&ver_notif_count);
+            messages_for_notif++;
+            pthread_mutex_unlock(&ver_notif_count);
 
-            if ((sendto(fil_poster->multicast_sockfd, buf, SIZE_MSG_NOTIF, 0, (struct sockaddr *)fil_poster->sockopt, sizeof(struct sockaddr_in6))) < 0){
-                perror("Erreur notification @ poster_billet \n");
-            }
-
-            free(buf);
         }
+        pthread_mutex_unlock(&ver_lf);
     }
 
     return num_fil;
 }
 
+/*
+    Renvoie la liste des n billets en fonctions des options de l'utilisateur.
+*/
 void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_client) {
     
     //On envoie la première réponse
@@ -325,7 +416,9 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
     //SI UN SEUL FIL
     if(msg_client->numfil != 0){
 
+        pthread_mutex_lock(&ver_lf);
         nb = (msg_client->nb > get_fil_id (liste_fils, numfil)->nb_de_msg || msg_client->nb == 0) ? ( get_fil_id(liste_fils , numfil) -> nb_de_msg ) : msg_client->nb ;
+        pthread_mutex_unlock(&ver_lf);
 
         //On envoie le premier message annoncant le nombre de messages qui vont suivre
         msg_serveur prem_reponse = {msg_client->codereq, msg_client->id, numfil, nb};
@@ -338,6 +431,8 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
         free(prem_reponse_a_envoyer);
 
         //On récupère le fil choisi
+
+        pthread_mutex_lock(&ver_lf);
         fil * fil = get_fil_id(liste_fils, numfil);
         int nb_billets = (nb > fil->nb_de_msg) ? fil->nb_de_msg : nb;
 
@@ -360,6 +455,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
         }
 
         free(billets_a_envoyer);
+        pthread_mutex_unlock(&ver_lf);
 
         return;
 
@@ -367,6 +463,7 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
 
     //SI TOUS LES FILS
 
+    pthread_mutex_lock(&ver_lf);
     //NOMBRE REEL DE BILLETS A ENVOYER PAR FIL
     int nbr_billets[liste_fils-> nb_de_fils];
 
@@ -375,14 +472,12 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
     fil * tmp = liste_fils->premier_fil;
     for(int i = 0; i < liste_fils->nb_de_fils; i++, tmp = tmp->suiv){
         if(msg_client->nb == 0){
-            //printf("nb de message de tmp : %d \n", tmp->nb_de_msg);
             nbr_billets[i] = tmp->nb_de_msg;
         } else {
             nbr_billets[i] = (msg_client -> nb > tmp->nb_de_msg) ? tmp->nb_de_msg : msg_client -> nb;
         }
         nb += nbr_billets[i];
     }
-    //printf("NB: %d \n", nb);
 
     //On envoie le premier message annoncant le nombre de messages qui vont suivre
     msg_serveur prem_reponse = {msg_client->codereq, msg_client->id, numfil, nb};
@@ -415,18 +510,20 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
             }
 
             free(msg_a_envoyer);
-
         }
 
         free(billets_pour_fil_actuel);
-
-
     }
-
+    pthread_mutex_unlock(&ver_lf);
 
 }
 
+/*
+    Abonne un utilisateur à un fil et lui envoie des notifications lorsqu'il y a un nouveau post.
+*/
 void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * bs) {
+
+    pthread_mutex_lock(&ver_lf);
     if(!f->is_multicast){
         //ACTIVER LE MULTICAST POUR F
 
@@ -454,7 +551,6 @@ void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * b
 
         struct sockaddr_in6 grsock = {0};
         grsock.sin6_family = AF_INET6;
-        printf("Adresse IP de multicast envoyée : %s\n", f->multicast_addr);
         inet_pton(AF_INET6, f->multicast_addr, &grsock.sin6_addr);
         grsock.sin6_port = htons(PORT_MULTICAST);
 
@@ -465,6 +561,7 @@ void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * b
         f->is_multicast = 1;
 
     }
+    pthread_mutex_unlock(&ver_lf);
     msg_demande_abo reponse = { .codereq = msg_client->codereq, .id = msg_client->id, .nb = PORT_MULTICAST, .numfil = msg_client->numfil, .ip = f->multicast_addr};
     u_int16_t * to_snd = msg_abo_to_tcp(reponse);
 
@@ -480,16 +577,20 @@ void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * b
     Envoie le port du serveur si le fil que l'utilisateur a selectionné existe bien.
 */
 int udp_envoi_port_client(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili) {
+
+    pthread_mutex_lock(&ver_lf);
     int num_fil = msg_client -> numfil;
 
     //Si le client veut poster sur un fil on regarde si celui ci est valide avant de renvoyer le numéro
     //de port
+    int r = PORT_UDP;
     if (num_fil != 0) {
         fil * fil_poster = get_fil_id(liste_fils, msg_client -> numfil);
-        if (fil_poster == NULL) return -1;
+        if (fil_poster == NULL) r = -1;
     }
+    pthread_mutex_unlock(&ver_lf);
 
-    return PORT_UDP;
+    return r;
 }
 
 /*
@@ -499,7 +600,7 @@ int recevoir_donnees_fichier_serveur(msg_client * msg_client, liste_fils * liste
     int sockudp = connexion_udp(PORT);
     if (sockudp < 0) { perror("sock "); return 1; }
 
-    int r = recevoir_donnees_fichier(sockudp, "fic_serv.txt");
+    int r = recevoir_donnees_fichier(sockudp, file_name, 0);
     close(sockudp);
     if (r == -1) return -1;
 
@@ -535,24 +636,28 @@ int fichier_existe_bdd(msg_client * msg_client, liste_fils * liste_fils) {
 
     //Sinon on cherche le fil et on cherche le fichier.
     else {
+
+        pthread_mutex_lock(&ver_lf);
         fil * fil_fichier = get_fil_id(liste_fils, msg_client -> numfil);
         //Le fil que l'utilisateur a voulu selectionner n'existe pas.
         if (fil_fichier == NULL) return -1;
 
         //On vérifie que le fichier existe bien dans le fil que l'on a demandé.
         int r = does_file_exist_fil(fil_fichier, msg_client -> data);
-        if (r == -1) return -1;
+        
+        if (r == -1) { pthread_mutex_unlock(&ver_lf); return -1; }
+        pthread_mutex_unlock(&ver_lf);
 
-        //On vérifie que le fichier existe bien physiquement
-        struct stat * buf = malloc(sizeof(struct stat));
-        if (buf == NULL) { perror("malloc "); return -1; }
-        if (stat(msg_client -> data, buf) != 0) {
+        char * directory_name = get_directory_file(msg_client -> data, 1);
+
+        //On vérifie que ce fichier existe bien.
+        FILE * fd = fopen(directory_name, "r");
+        if (fd == NULL) {
             printf("Le fichier que vous avez entré n'est pas trouvable.\n");
-            free(buf);
+            free(directory_name);
             return -1;
         }
-
-        free(buf);
+        free(directory_name);
     }
 
     return 0;
@@ -593,5 +698,5 @@ int envoyer_donnees_fichier_serveur(int port, char * file_name) {
     }
 
     if (r == 0) return -1;
-    else return envoyer_donnees_fichier(sockudp, adrclient, 6, port, file_name);
+    else return envoyer_donnees_fichier(sockudp, adrclient, 6, port, file_name, 0);
 }
