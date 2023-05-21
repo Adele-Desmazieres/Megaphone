@@ -37,6 +37,9 @@ int main(int argc, char **argv) {
     return creation_serveur();
 }
 
+/*
+    Constructeur pour la base de donnée serveur
+*/
 base_serveur * base_serveur_constr(user_list * ul, liste_fils * lf, int sockli) {
     base_serveur * ret = malloc(sizeof(base_serveur));
     if (ret == NULL) perror("Erreur malloc objets thread structure\n");
@@ -163,7 +166,6 @@ int accepter_clients(int sock) {
 /*
     Thread pour gérer l'envoi des notifications multicast
 */
-
 void * gestion_notifications(void * arg){
 
     liste_fils * lf = (liste_fils *)arg;
@@ -306,6 +308,9 @@ void * communication_client(void * arg_base_serveur) {
     return NULL;
 }
 
+/*
+    Envoie un message d'erreur avec pour code 31 au client.
+*/
 void envoi_erreur_client(int sockcli) {
     msg_serveur message_erreur = {31, 0, 0, 0};
     uint16_t * msg_reponse = msg_serveur_to_send(message_erreur);
@@ -318,6 +323,9 @@ void envoi_erreur_client(int sockcli) {
     free(msg_reponse);
 }
 
+/*
+    Transforme un objet msg_serveur en uint16 puis l'envoie au client.
+*/
 void envoie_reponse_client(int sockcli, msg_serveur reponse_serveur) {
     uint16_t * msg_reponse = msg_serveur_to_send(reponse_serveur);
 
@@ -329,8 +337,9 @@ void envoie_reponse_client(int sockcli, msg_serveur reponse_serveur) {
     free(msg_reponse);
 }
 
-//Fonction qui permet à l'utilisateur de s'inscrire. Renvoie l'identifiant de l'utilisateur
-//en cas de succès.
+/*
+    Permet à l'utilisateur de s'inscrire. Renvoie l'identifiant de l'utilisateur en cas de succès.
+*/
 int inscription_utili(msg_client * msg_client, user_list * liste_utili) {
 
     pthread_mutex_lock(&ver_lu);
@@ -341,8 +350,10 @@ int inscription_utili(msg_client * msg_client, user_list * liste_utili) {
     return r;
 }
 
-//Fonction qui permet de poster un billet dans un fil passé en parametre du message. Renvoie le numéro 
-//du fil ou le billet a été posté en cas de succès.
+/*
+    Permet de poster un billet dans un fil passé en parametre du message. Renvoie le numéro 
+    du fil ou le billet a été posté en cas de succès.
+*/
 int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * liste_utili, char * contenu) {
     int num_fil = msg_client -> numfil;
 
@@ -392,6 +403,9 @@ int poster_billet(msg_client * msg_client, liste_fils * liste_fils, user_list * 
     return num_fil;
 }
 
+/*
+    Renvoie la liste des n billets en fonctions des options de l'utilisateur.
+*/
 void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_client) {
     
     //On envoie la première réponse
@@ -458,15 +472,12 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
     fil * tmp = liste_fils->premier_fil;
     for(int i = 0; i < liste_fils->nb_de_fils; i++, tmp = tmp->suiv){
         if(msg_client->nb == 0){
-            //printf("nb de message de tmp : %d \n", tmp->nb_de_msg);
             nbr_billets[i] = tmp->nb_de_msg;
         } else {
             nbr_billets[i] = (msg_client -> nb > tmp->nb_de_msg) ? tmp->nb_de_msg : msg_client -> nb;
         }
         nb += nbr_billets[i];
     }
-
-    //printf("NB: %d \n", nb);
 
     //On envoie le premier message annoncant le nombre de messages qui vont suivre
     msg_serveur prem_reponse = {msg_client->codereq, msg_client->id, numfil, nb};
@@ -507,6 +518,9 @@ void liste_n_billets(int sockcli, liste_fils * liste_fils, msg_client * msg_clie
 
 }
 
+/*
+    Abonne un utilisateur à un fil et lui envoie des notifications lorsqu'il y a un nouveau post.
+*/
 void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * bs) {
 
     pthread_mutex_lock(&ver_lf);
@@ -537,7 +551,6 @@ void abonner_fil(fil * f, msg_client * msg_client, int sockcli, base_serveur * b
 
         struct sockaddr_in6 grsock = {0};
         grsock.sin6_family = AF_INET6;
-        //printf("Adresse IP de multicast envoyée : %s\n", f->multicast_addr);
         inet_pton(AF_INET6, f->multicast_addr, &grsock.sin6_addr);
         grsock.sin6_port = htons(PORT_MULTICAST);
 
@@ -587,9 +600,7 @@ int recevoir_donnees_fichier_serveur(msg_client * msg_client, liste_fils * liste
     int sockudp = connexion_udp(PORT);
     if (sockudp < 0) { perror("sock "); return 1; }
 
-    //pthread_mutex_lock(&ver_fic);
-    int r = recevoir_donnees_fichier(sockudp, "fic_serv.txt");
-    //pthread_mutex_unlock(&ver_fic);
+    int r = recevoir_donnees_fichier(sockudp, file_name, 0);
     close(sockudp);
     if (r == -1) return -1;
 
@@ -637,19 +648,16 @@ int fichier_existe_bdd(msg_client * msg_client, liste_fils * liste_fils) {
         if (r == -1) { pthread_mutex_unlock(&ver_lf); return -1; }
         pthread_mutex_unlock(&ver_lf);
 
-        //On vérifie que le fichier existe bien physiquement
-        //pthread_mutex_lock(&ver_fic);
-        struct stat * buf = malloc(sizeof(struct stat));
-        if (buf == NULL) { perror("malloc "); return -1; }
-        if (stat(msg_client -> data, buf) != 0) {
+        char * directory_name = get_directory_file(msg_client -> data, 1);
+
+        //On vérifie que ce fichier existe bien.
+        FILE * fd = fopen(directory_name, "r");
+        if (fd == NULL) {
             printf("Le fichier que vous avez entré n'est pas trouvable.\n");
-            free(buf);
-            //pthread_mutex_unlock(&ver_fic);
+            free(directory_name);
             return -1;
         }
-
-        free(buf);
-        //pthread_mutex_unlock(&ver_fic);
+        free(directory_name);
     }
 
     return 0;
@@ -690,5 +698,5 @@ int envoyer_donnees_fichier_serveur(int port, char * file_name) {
     }
 
     if (r == 0) return -1;
-    else return envoyer_donnees_fichier(sockudp, adrclient, 6, port, file_name);
+    else return envoyer_donnees_fichier(sockudp, adrclient, 6, port, file_name, 0);
 }

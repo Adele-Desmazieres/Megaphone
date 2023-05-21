@@ -157,40 +157,40 @@ void free_liste_paquets(liste_paquets * liste) {
 /*
     Envoie les données d'un fichier à la sock passée en parametre ainsi que l'adrudp et le port.
 */
-int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, int port, char * file_name) {
-    int fd = open(file_name, O_RDONLY, 0640);
-    if (fd == -1) { perror("open"); return -1; }
+int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, int port, char * file_name, int directory_client) {
+    char * directory_name = get_directory_file(file_name, directory_client);
+
+    FILE * fd = fopen(directory_name, "r");
+    if (fd == NULL) { perror("fopen"); return -1; }
 
     //On récupère la taille du fichier.
-    struct stat st;
-    stat(file_name, &st);
-    int file_size = st.st_size;
+    fseek(fd, 0, SEEK_END);
+    int file_size = ftell(fd);
+    fseek(fd, 0, SEEK_SET);
 
     //On prend + 1 pour prendre en compte le symbole '\0' pour strlen
     char read_buff[SIZE_PAQ + 1];
     memset(read_buff, '\0', SIZE_PAQ + 1);
-    int r = read(fd, read_buff, SIZE_PAQ);
-
-    if (r < 0) { perror("read "); return -1; }
-    else if (r == 0) { printf("Le fichier que vous voulez envoyer est vide.\n"); return -1;}
 
     int numbloc = 0;
     socklen_t len = sizeof(adrudp);
+    int r = fread(read_buff, SIZE_PAQ, 1, fd);
 
     //On lit les données de notre fichier, transforme en msg uint16 et on envoie.
-    while (r > 0) {
+    while (strlen(read_buff) > 0) {
         paquet paq = {5, codereq, numbloc, read_buff};
         size_t len_paq = get_taille_msg_udp(paq);
         u_int16_t * msg = paquet_to_udp(len_paq, paq);
         r = sendto(sock, msg, len_paq, 0, (struct sockaddr *)&adrudp, len);
         if (r < 0){ perror("sendto "); return -1;}
 
-        memset(read_buff, 0, SIZE_PAQ + 1);
-        r = read(fd, read_buff, SIZE_PAQ);
-        if (r < 0){ perror("read "); return -1; }
+        memset(read_buff, '\0', SIZE_PAQ + 1);
+        r = fread(read_buff, SIZE_PAQ, 1, fd);
         numbloc += 1;
         free(msg);
     }
+    if (ferror(fd))
+        perror("Erreur lecture ");
 
     //Si la taille du fichier est divisible par 512 on envoie un paquet vide.
     if (file_size % 512 == 0) {
@@ -202,7 +202,9 @@ int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, i
         free(msg);
     }
 
-    close(fd);
+    free(directory_name);
+    fclose(fd);
+    close(sock);
     
     return 0;
 }
@@ -210,7 +212,7 @@ int envoyer_donnees_fichier(int sock, struct sockaddr_in6 adrudp, int codereq, i
 /*
     Recoit les données d'un fichier à la sock passée en parametre.
 */
-int recevoir_donnees_fichier(int sock, char * file_name) {
+int recevoir_donnees_fichier(int sock, char * file_name, int directory_client) {
     //On créé la liste qui va pouvoir stocker tous les paquets reçus.
     liste_paquets * liste_paq = malloc(sizeof(liste_paquets));
     if (liste_paq == NULL) return -1;
@@ -243,8 +245,8 @@ int recevoir_donnees_fichier(int sock, char * file_name) {
         nb_paquets += 1;
     }
 
-    //On écrit enfin dans le fichier toute la liste des paquets.s
-    r = ecrire_dans_fichier_udp(file_name, liste_paq);
+    //On écrit enfin dans le fichier toute la liste des paquets.
+    r = ecrire_dans_fichier_udp(file_name, liste_paq, directory_client);
     if (r == -1) return -1;
 
     return 0;
@@ -253,32 +255,53 @@ int recevoir_donnees_fichier(int sock, char * file_name) {
 /*
     Ecrit les données de tous les paquets dans un fichier.
 */
-int ecrire_dans_fichier_udp(char * file_name, liste_paquets * liste_paq) {
+int ecrire_dans_fichier_udp(char * file_name, liste_paquets * liste_paq, int directory_client) {
+    char * directory_name = get_directory_file(file_name, directory_client);
+
     //On ouvre le fichier et le créé si besoin.
-    int fd = open(file_name, O_CREAT | O_WRONLY | O_TRUNC, 0640);
-    if (fd == -1) {
-        perror("open");
+    FILE * fd = fopen(directory_name, "w+");
+    if (fd == NULL) {
+        perror("fopen ");
         free_liste_paquets(liste_paq);
         return -1;
     }
-    lseek(fd, 0, SEEK_SET);
+    fseek(fd, 0, SEEK_SET);
 
     //Enfin on écrit tous les paquets dans le fichier.
     paquet * courant = liste_paq -> first;
     while (courant != NULL) {
-        int r = write(fd, courant -> data, strlen(courant -> data));
+        int r = fwrite(courant -> data, strlen(courant -> data), 1, fd);
         if (r < 0) {
-            perror("write "); 
+            perror("fwrite "); 
             free_liste_paquets(liste_paq);
-            close(fd);
+            fclose(fd);
             return -1;
         }
 
         courant = courant -> next;
     }
 
+    free(directory_name);
     free_liste_paquets(liste_paq);
-    close(fd);
+    fclose(fd);
 
     return 0;
+}
+
+char * get_directory_file(char * file_name, int directory_client) { 
+    char * directory_name;
+    if (directory_client == 1) {
+        directory_name = malloc(strlen("FicClient/") + strlen(file_name) + 1);
+        directory_name[strlen("cClient/") + strlen(file_name)] = '\0';
+        strcpy(directory_name, "FicClient/");
+        strcat(directory_name, file_name);
+    }
+    else {
+        directory_name = malloc(strlen("FicServ/") + strlen(file_name) + 1);
+        directory_name[strlen("FicServ/") + strlen(file_name)] = '\0';
+        strcpy(directory_name, "FicServ/");
+        strcat(directory_name, file_name);
+    }
+
+    return directory_name;
 }

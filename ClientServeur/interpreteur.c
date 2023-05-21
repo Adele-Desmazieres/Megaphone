@@ -77,8 +77,7 @@ int main(int argc, char **argv)
 /*
     Arrete le progamme client, free les pointeurs.
 */
-int arret(int *userid)
-{
+int arret(int *userid) {
     printf("Arrêt du programme client.\n");
     free(userid);
     exit(0);
@@ -141,9 +140,10 @@ int inscription(int *userid)
     {
 
         printf("Entrez votre pseudo > ");
-        fgets(str_input, MSG_LIMIT, stdin); // TODO : corriger le bug qui fait que si un texte plus long que MSG_LIMIT est entré, alors les MSG_LIMIT premiers caractères seront écrit dans ce pseudo (qui sera refusé car trop long) mais la fin du texte sera écrit dans la demande de pseudo suivante (qui peut être accepté si ca rentre dans la limite de longueur du pseudo)
+        fgets(str_input, MSG_LIMIT, stdin);
 
-        str_input[MSG_LIMIT - 1] = '\0'; // remplace le dernier caractère par \0 pour le cas où le pseudo entré est trop long
+        // remplace le dernier caractère par \0 pour le cas où le pseudo entré est trop long
+        str_input[MSG_LIMIT - 1] = '\0';
 
         n = strlen(str_input);
         // on enlève le \n à la fin de la chaîne récupérée, s'il est le dernier caractère
@@ -159,7 +159,7 @@ int inscription(int *userid)
             return -1;
         }
         else if (n > PSEUDO_LIMIT)
-        { // TODO : check pseudo contient que des caractères alphanum ?
+        {
             printf("Pseudo trop long. Il doit faire au plus %d caractères.\n", PSEUDO_LIMIT);
         }
     }
@@ -346,8 +346,7 @@ int string_is_number(char *s)
     return 1;
 }
 
-// https://stackoverflow.com/questions/8164000/how-to-dynamically-allocate-memory-space-for-a-string-and-get-that-string-from-u
-// TODO : à remplacer par readline
+
 char *getln()
 {
     char *line = NULL;
@@ -458,6 +457,207 @@ int poster_billet_client(int *userid)
 }
 
 /*
+    Récupère la liste des n billets en fonction des options rentrées par l'utilisateur.
+*/
+int get_n_billets(int userid){
+
+    int sockfd = (v4) ? connexion_4() : connexion_6();
+    if(sockfd < 0){
+        perror("connexion_4 @ get_n_billets \n");
+    }
+
+    char *num_input;
+
+    printf("Entrez le numéro du fil duquel vous souhaitez récupérer les derniers messages (0 pour tous) > ");
+    num_input = getln();
+    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
+        printf("Veuillez entrer un numéro correct > ");
+        free(num_input);
+        num_input = getln();
+    }
+    int numfil = atoi(num_input);
+    free(num_input);
+
+    printf("Entrez le nombre de derniers messages que vous souhaitez récupérer (0 pour tous) > ");
+    num_input = getln();
+    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
+        printf("Veuillez entrer un numéro correct > ");
+        free(num_input);
+        num_input = getln();
+    }
+    int nb = atoi(num_input);
+    free(num_input);
+
+    msg_client requete = {.codereq = 3, .numfil = numfil, .id = userid, .nb = nb, .datalen = 0, .data = "", .is_inscript = 0};
+    u_int16_t * req_to_snd = msg_client_to_send(requete);
+
+    if( send(sockfd, req_to_snd, 7, 0) < 0){
+        perror("Erreur envoi requete @ get_n_billets\n");
+    }
+
+    free(req_to_snd);
+
+    u_int16_t * prem_reponse = malloc(SIZE_MSG_SERVEUR);
+    memset(prem_reponse, 0, SIZE_MSG_SERVEUR);
+    if( recv(sockfd, prem_reponse, SIZE_MSG_SERVEUR, 0) < 0){
+        perror("Erreur réception répone @ get_n_billets\n");
+    }
+
+    msg_serveur infos_reponse = tcp_to_msgserveur(prem_reponse);
+    free(prem_reponse);
+
+    if(infos_reponse.codereq == 31){
+        printf("Erreur envoyée par le serveur, vérifiez vos informations\n");
+        return -1;
+    }
+
+    if(numfil == 0){
+        printf("Il y a actuellement %d fils actifs sur le serveur\n", infos_reponse.numfil);
+    }
+
+    for(int i = 0; i < infos_reponse.nb; i++){
+
+        msg_billet_envoi * billet_recu = tcp_to_msgbillet(sockfd);
+        printf("Fil %d initié par %s \n %s dit \' %s \' \n\n", billet_recu->numfil, billet_recu->origine, billet_recu->pseudo, billet_recu->data);
+        free(billet_recu->data);
+        free(billet_recu->pseudo);
+        free(billet_recu->origine);
+        free(billet_recu);
+
+    }
+
+    return 0;
+}
+
+/*
+    S'abonne à un fil dont le numéro est rentré par l'utilisateur et recoit des notifs à chaque post.
+*/
+int abonnement_fil(int userid){
+
+    int sockfd = (v4) ? connexion_4() : connexion_6();
+    if(sockfd < 0){
+        perror("Erreur de connexion @ abonnement_fil\n");
+        return -1;
+    }
+
+    char *num_input;
+
+    printf("Entrez le numéro du fil auquel vous souhaitez vous abonner > ");
+    num_input = getln();
+    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
+        printf("Veuillez entrer un numéro correct > ");
+        free(num_input);
+        num_input = getln();
+    }
+    int numfil = atoi(num_input);
+    free(num_input);
+
+    msg_client requete = { .codereq = 4, .id = userid, .numfil = numfil, .datalen = 0, .data = "", .is_inscript = 0};
+    u_int16_t * buf = msg_client_to_send(requete);
+
+    if (send(sockfd, buf, 6, 0) < 0){
+        perror("Erreur envoi requête @ abonnemnt_fil \n"); return -1;
+    }
+
+    free(buf);
+
+    msg_demande_abo * infos_ip = tcp_to_msg_abo(sockfd);
+    
+    if(infos_ip->codereq == 31){
+        printf("Erreur côté serveur\n"); return -1;
+    }
+
+    int sock_multicast;
+    pthread_mutex_lock(&verrou_pollfd);
+    if(*tailledepoll == 0){
+        sock_multicast = socket(AF_INET6, SOCK_DGRAM, 0);
+        if (sock_multicast < 0){
+            pthread_mutex_unlock(&verrou_pollfd);
+            perror("Erreur socket @ abonnement_fil\n"); return -1;
+        }
+
+        int reuse = 1;
+        if (setsockopt(sock_multicast, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
+            perror("erreur option reuse addr @ abonnement_fil \n");
+        }
+
+        struct sockaddr_in6 grsock = {0};
+        grsock.sin6_family = AF_INET6;
+        grsock.sin6_addr = in6addr_any;
+        grsock.sin6_port = htons(PORT_MULTICAST);
+
+        if(bind(sock_multicast, (struct sockaddr * ) &grsock, sizeof(grsock)) < 0){
+            perror("Erreur bind @ abonnement_fil \n");
+        }
+
+    } else {
+        sock_multicast = notrepoll[0].fd;
+    }
+
+    struct ipv6_mreq group = {0};
+    inet_pton(AF_INET6, infos_ip->ip, &group.ipv6mr_multiaddr);
+    group.ipv6mr_interface = 0;
+
+    if (setsockopt(sock_multicast, IPPROTO_IPV6, IPV6_JOIN_GROUP, &group, sizeof(group)) < 0){
+        perror("erreur option join group @ abonnement_fil \n");
+    }
+
+    if(*tailledepoll == 0){
+        struct pollfd poll_specifique = {0};
+        poll_specifique.fd = sock_multicast;
+        poll_specifique.events = POLLIN;
+
+        notrepoll[0] = poll_specifique;
+
+        *tailledepoll = 1;
+    }
+    pthread_mutex_unlock(&verrou_pollfd);
+
+
+    printf("Abonné avec succès au fil %d\n", infos_ip->numfil);
+
+    free(infos_ip->ip);
+    free(infos_ip);
+
+    return 0;
+}
+
+/*
+    Envoie des notifications à l'utilisateur lorsque il y a un nouveau post au fil auquel iel est abonné.e.
+*/
+void * thread_notifs(void * args){
+
+    while(1){
+
+        pthread_mutex_lock(&verrou_pollfd);
+        if(*tailledepoll == 0){ pthread_mutex_unlock(&verrou_pollfd); continue; }
+
+        if( (poll(notrepoll, *tailledepoll, 5000)) == 0) { pthread_mutex_unlock(&verrou_pollfd); continue; }
+            
+            if ((notrepoll[0].revents & POLLIN) == 0) continue;
+            if (notrepoll[0].revents & POLLIN){
+                //Alors ce descripteur est prêt pour la lecture;
+
+                u_int16_t buf[SIZE_MSG_NOTIF] = {0};
+                if (read(notrepoll[0].fd, buf, SIZE_MSG_NOTIF) <= 0){
+                    perror("Read sur descripteur de notif\n");
+                }
+
+                msg_notif * msg_a_afficher = udp_to_msg_notif(buf);
+
+                printf("\nNotif fil %d : %s - %s \n", msg_a_afficher->numfil, msg_a_afficher->data, msg_a_afficher->pseudo);
+                notrepoll[0].revents = 0;
+
+                free(msg_a_afficher->pseudo);
+                free(msg_a_afficher->data);
+                free(msg_a_afficher);                    
+            }
+        pthread_mutex_unlock(&verrou_pollfd);
+    }
+}
+
+
+/*
     Envoie un billet avec le nom d'un fichier, ainsi que le contenu du fichier au serveur.
 */
 int envoyer_donnees_fichier_client(int *userid) {
@@ -481,17 +681,18 @@ int envoyer_donnees_fichier_client(int *userid) {
     str_input = getln();
     n = strlen(str_input);
 
+    char * directory_name = get_directory_file(str_input, 1);
+
     //On vérifie que ce fichier existe bien.
-    struct stat * buf = malloc(sizeof(struct stat));
-    if (buf == NULL) { perror("malloc "); return -1; }
-    if (stat(str_input, buf) != 0) {
+    FILE * fd = fopen(directory_name, "r");
+    if (fd == NULL) {
         printf("Le fichier que vous avez entré n'est pas trouvable.\n");
-        free(buf);
+        free(directory_name);
         free(str_input);
         return -1;
     }
-
-    free(buf);
+    
+    free(directory_name);
 
     // On créé le message avec lendata le nombre de caractère du fichier et data le nom du fichier.
     msg_client mstruct = {5, *userid, numfil, 0, strlen(str_input), str_input, 0 };
@@ -533,7 +734,7 @@ int envoyer_donnees_fichier_client(int *userid) {
     int sockudp = connexion_udp_6(&adrudp, rep.nb);
     if (sockudp < 0) { perror("sock "); return 1; }
 
-    int r = envoyer_donnees_fichier(sockudp, adrudp, 5, rep.nb, str_input);
+    int r = envoyer_donnees_fichier(sockudp, adrudp, 5, rep.nb, str_input, 1);
 
     close(sockudp);
     free(str_input);
@@ -628,7 +829,7 @@ int recevoir_donnees_fichier_client(int *userid) {
         return -1; 
     }
 
-    r = recevoir_donnees_fichier(sockudp, recep_file);
+    r = recevoir_donnees_fichier(sockudp, recep_file, 1);
 
     if (r == -1) { perror("Fichier mal reçu");}
     else printf("Fichier bien reçu.\n");
@@ -637,9 +838,6 @@ int recevoir_donnees_fichier_client(int *userid) {
     free(recep_file);
     free(str_input);
     free(marray);
-
-    if (r == -1) { printf("Fichier mal envoyé.\n"); return -1; }
-    else printf("Fichier bien envoyé.\n");
 
     return 0;
 
@@ -677,200 +875,6 @@ int envoyer_serveur_udp_adr(struct sockaddr_in6 servadr, int sock) {
             if (r < 0) { perror("Echec sendto "); return -1; }
             i ++;
         }
-    }
-
-    return 0;
-}
-
-int abonnement_fil(int userid){
-
-    int sockfd = (v4) ? connexion_4() : connexion_6();
-    if(sockfd < 0){
-        perror("Erreur de connexion @ abonnement_fil\n");
-        return -1;
-    }
-
-    //TODO récupérer les informations par l'interpréteur : numéro de fil
-
-    char *num_input;
-
-    printf("Entrez le numéro du fil auquel vous souhaitez vous abonner > ");
-    num_input = getln();
-    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
-        printf("Veuillez entrer un numéro correct > ");
-        free(num_input);
-        num_input = getln();
-    }
-    int numfil = atoi(num_input);
-    free(num_input);
-
-    msg_client requete = { .codereq = 4, .id = userid, .numfil = numfil, .datalen = 0, .data = "", .is_inscript = 0};
-    u_int16_t * buf = msg_client_to_send(requete);
-
-    if (send(sockfd, buf, 6, 0) < 0){
-        perror("Erreur envoi requête @ abonnemnt_fil \n"); return -1;
-    }
-
-    free(buf);
-
-    msg_demande_abo * infos_ip = tcp_to_msg_abo(sockfd);
-    
-    if(infos_ip->codereq == 31){
-        printf("Erreur côté serveur\n"); return -1;
-    }
-
-    int sock_multicast;
-    pthread_mutex_lock(&verrou_pollfd);
-    if(*tailledepoll == 0){
-        sock_multicast = socket(AF_INET6, SOCK_DGRAM, 0);
-        if (sock_multicast < 0){
-            pthread_mutex_unlock(&verrou_pollfd);
-            perror("Erreur socket @ abonnement_fil\n"); return -1;
-        }
-
-        int reuse = 1;
-        if (setsockopt(sock_multicast, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
-            perror("erreur option reuse addr @ abonnement_fil \n");
-        }
-
-        struct sockaddr_in6 grsock = {0};
-        grsock.sin6_family = AF_INET6;
-        grsock.sin6_addr = in6addr_any;
-        grsock.sin6_port = htons(PORT_MULTICAST);
-
-        if(bind(sock_multicast, (struct sockaddr * ) &grsock, sizeof(grsock)) < 0){
-            perror("Erreur bind @ abonnement_fil \n");
-        }
-
-    } else {
-        sock_multicast = notrepoll[0].fd;
-    }
-
-    struct ipv6_mreq group = {0};
-    //printf("IPv6 reçue? %s \n", infos_ip->ip);
-    inet_pton(AF_INET6, infos_ip->ip, &group.ipv6mr_multiaddr);
-    group.ipv6mr_interface = 0;
-
-    if (setsockopt(sock_multicast, IPPROTO_IPV6, IPV6_JOIN_GROUP, &group, sizeof(group)) < 0){
-        perror("erreur option join group @ abonnement_fil \n");
-    }
-
-    if(*tailledepoll == 0){
-        struct pollfd poll_specifique = {0};
-        poll_specifique.fd = sock_multicast;
-        poll_specifique.events = POLLIN;
-
-        notrepoll[0] = poll_specifique;
-
-        *tailledepoll = 1;
-    }
-    pthread_mutex_unlock(&verrou_pollfd);
-
-
-    printf("Abonné avec succès au fil %d\n", infos_ip->numfil);
-
-    free(infos_ip->ip);
-    free(infos_ip);
-
-    return 0;
-}
-
-void * thread_notifs(void * args){
-
-    while(1){
-
-        pthread_mutex_lock(&verrou_pollfd);
-        if(*tailledepoll == 0){ pthread_mutex_unlock(&verrou_pollfd); continue; }
-
-        if( (poll(notrepoll, *tailledepoll, 5000)) == 0) { pthread_mutex_unlock(&verrou_pollfd); continue; }
-            
-            if ((notrepoll[0].revents & POLLIN) == 0) continue;
-            if (notrepoll[0].revents & POLLIN){
-                //Alors ce descripteur est prêt pour la lecture;
-
-                u_int16_t buf[SIZE_MSG_NOTIF] = {0};
-                if (read(notrepoll[0].fd, buf, SIZE_MSG_NOTIF) <= 0){
-                    perror("Read sur descripteur de notif\n");
-                }
-
-                msg_notif * msg_a_afficher = udp_to_msg_notif(buf);
-
-                printf("\nNotif fil %d : %s - %s \n", msg_a_afficher->numfil, msg_a_afficher->data, msg_a_afficher->pseudo);
-                notrepoll[0].revents = 0;
-
-                free(msg_a_afficher->pseudo);
-                free(msg_a_afficher->data);
-                free(msg_a_afficher);                    
-            }
-        pthread_mutex_unlock(&verrou_pollfd);
-    }
-}
-
-int get_n_billets(int userid){
-
-    int sockfd = (v4) ? connexion_4() : connexion_6();
-    if(sockfd < 0){
-        perror("connexion_4 @ get_n_billets \n");
-    }
-
-    char *num_input;
-
-    printf("Entrez le numéro du fil duquel vous souhaitez récupérer les derniers messages (0 pour tous) > ");
-    num_input = getln();
-    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
-        printf("Veuillez entrer un numéro correct > ");
-        free(num_input);
-        num_input = getln();
-    }
-    int numfil = atoi(num_input);
-    free(num_input);
-
-    printf("Entrez le nombre de derniers messages que vous souhaitez récupérer (0 pour tous) > ");
-    num_input = getln();
-    while (!string_is_number(num_input) || strlen(num_input) <= 0) {
-        printf("Veuillez entrer un numéro correct > ");
-        free(num_input);
-        num_input = getln();
-    }
-    int nb = atoi(num_input);
-    free(num_input);
-
-    msg_client requete = {.codereq = 3, .numfil = numfil, .id = userid, .nb = nb, .datalen = 0, .data = "", .is_inscript = 0};
-    u_int16_t * req_to_snd = msg_client_to_send(requete);
-
-    if( send(sockfd, req_to_snd, 7, 0) < 0){
-        perror("Erreur envoi requete @ get_n_billets\n");
-    }
-
-    free(req_to_snd);
-
-    u_int16_t * prem_reponse = malloc(SIZE_MSG_SERVEUR);
-    memset(prem_reponse, 0, SIZE_MSG_SERVEUR);
-    if( recv(sockfd, prem_reponse, SIZE_MSG_SERVEUR, 0) < 0){
-        perror("Erreur réception répone @ get_n_billets\n");
-    }
-
-    msg_serveur infos_reponse = tcp_to_msgserveur(prem_reponse);
-    free(prem_reponse);
-
-    if(infos_reponse.codereq == 31){
-        printf("Erreur envoyée par le serveur, vérifiez vos informations\n");
-        return -1;
-    }
-
-    if(numfil == 0){
-        printf("Il y a actuellement %d fils actifs sur le serveur\n", infos_reponse.numfil);
-    }
-
-    for(int i = 0; i < infos_reponse.nb; i++){
-
-        msg_billet_envoi * billet_recu = tcp_to_msgbillet(sockfd);
-        printf("Fil %d initié par %s \n %s dit \' %s \' \n\n", billet_recu->numfil, billet_recu->origine, billet_recu->pseudo, billet_recu->data);
-        free(billet_recu->data);
-        free(billet_recu->pseudo);
-        free(billet_recu->origine);
-        free(billet_recu);
-
     }
 
     return 0;
